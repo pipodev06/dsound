@@ -1,27 +1,32 @@
 import os
 import shutil
-import sys
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv, set_key
 
-load_dotenv()
+_DOTENV_PATH = find_dotenv()
+load_dotenv(_DOTENV_PATH)
 
-SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "")
-SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "")
-OUTPUT_DIR = os.getenv("OUTPUT_DIR", "downloads")
+# Carpeta "Music" del usuario (Windows la muestra como "Musica" segun el idioma,
+# pero el nombre real de la carpeta es "Music").
+_DEFAULT_OUTPUT_DIR = os.path.join(os.path.expanduser("~"), "Music", "dsound")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", _DEFAULT_OUTPUT_DIR)
 MP3_BITRATE = os.getenv("MP3_BITRATE", "320")
-
-# tolerancia de duracion pa matching YT vs Spotify (segundos)
-DURATION_TOLERANCE_STRICT = 3
-DURATION_TOLERANCE_LOOSE = 8
+PORT = int(os.getenv("DSOUND_PORT", "5000"))
 
 
-def require_ffmpeg():
-    if shutil.which("ffmpeg") is None:
-        sys.exit(
-            "ffmpeg no encontrado en PATH. Instalalo: "
-            "winget install Gyan.FFmpeg (reiniciar terminal despues)."
-        )
+def require_ffmpeg() -> bool:
+    return shutil.which("ffmpeg") is not None
 
 
-def has_spotify_creds():
-    return bool(SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET)
+def ffmpeg_missing_message() -> str:
+    return (
+        "ffmpeg no encontrado en PATH. Instalalo: "
+        "winget install Gyan.FFmpeg (reiniciar terminal despues)."
+    )
+
+
+def save_output_dir(path: str):
+    """Guarda la carpeta de salida en .env para que quede para proximas sesiones."""
+    global OUTPUT_DIR
+    OUTPUT_DIR = path
+    dotenv_path = _DOTENV_PATH or os.path.join(os.getcwd(), ".env")
+    set_key(dotenv_path, "OUTPUT_DIR", path)

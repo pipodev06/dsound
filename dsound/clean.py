@@ -1,3 +1,4 @@
+import os
 import re
 
 JUNK_PATTERNS = [
@@ -12,7 +13,7 @@ JUNK_PATTERNS = [
     r"\(?4k\)?",
     r"\(?mv\)?",
     r"\[?\s*monstercat.*?\]?",
-    r"\|.*?(records|music|prod).*",
+    r"\s*\|.*$",
 ]
 
 BAD_KEYWORDS = ["live", "remix", "cover", "reaction", "8d audio", "sped up", "nightcore", "karaoke"]
@@ -37,3 +38,13 @@ def sanitize_filename(name: str) -> str:
 
 def build_filename(artist: str, title: str) -> str:
     return sanitize_filename(f"{artist} - {title}") + ".mp3"
+
+
+def unique_path(path: str) -> str:
+    if not os.path.exists(path):
+        return path
+    base, ext = os.path.splitext(path)
+    i = 2
+    while os.path.exists(f"{base} ({i}){ext}"):
+        i += 1
+    return f"{base} ({i}){ext}"

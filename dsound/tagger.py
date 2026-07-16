@@ -13,11 +13,11 @@ def tag_mp3(filepath: str, meta: dict):
         tags = EasyID3(filepath)
 
     tags["title"] = meta["title"]
-    tags["artist"] = meta.get("artists", [meta.get("primary_artist", "")])
+    artists = meta.get("artists") or ([meta["primary_artist"]] if meta.get("primary_artist") else [])
+    if artists:
+        tags["artist"] = artists
     if meta.get("album"):
         tags["album"] = meta["album"]
-    if meta.get("track_number"):
-        tags["tracknumber"] = str(meta["track_number"])
     if meta.get("release_date"):
         tags["date"] = meta["release_date"][:4]
     tags.save(filepath)

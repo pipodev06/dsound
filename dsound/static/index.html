@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>dsound</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">dsound<span class="cursor">_</span></div>
+    <div class="folder">
+      <span class="folder-label">carpeta</span>
+      <span id="output-dir" class="folder-path">cargando...</span>
+      <button id="change-folder" class="btn btn-ghost" type="button">cambiar</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="ffmpeg-warning" class="banner banner-warn" hidden>
+      <span class="tag tag-warn">[!]</span>
+      <span id="ffmpeg-warning-text"></span>
+    </div>
+
+    <nav class="tabs">
+      <button type="button" class="tab-btn is-active" data-tab="search">Buscar</button>
+      <button type="button" class="tab-btn" data-tab="albums">Álbumes</button>
+      <button type="button" class="tab-btn" data-tab="library">Biblioteca</button>
+    </nav>
+
+    <section id="view-search">
+      <form id="search-form" class="prompt-row">
+        <label class="prompt-label" for="query">dsound &gt;</label>
+        <input
+          id="query"
+          class="prompt-input"
+          type="text"
+          placeholder="buscar cancion, o pegar link de YouTube/Spotify"
+          autocomplete="off"
+          autofocus
+        />
+        <button type="submit" class="btn btn-accent">Buscar</button>
+      </form>
+
+      <div class="settings-row">
+        <label for="bitrate-select" class="settings-label">calidad</label>
+        <select id="bitrate-select" class="settings-select">
+          <option value="128">128 kbps</option>
+          <option value="192">192 kbps</option>
+          <option value="320" selected>320 kbps</option>
+        </select>
+      </div>
+
+      <div id="batch-bar" class="batch-bar" hidden>
+        <span id="batch-count" class="batch-count"></span>
+        <button id="batch-download" class="btn btn-accent btn-sm" type="button">Descargar seleccionadas</button>
+        <button id="batch-clear" class="btn btn-ghost btn-sm" type="button">Cancelar</button>
+      </div>
+
+      <ul id="results" class="results"></ul>
+      <button id="load-more" class="btn btn-ghost load-more" type="button" hidden>Mas Resultados...</button>
+
+      <section id="log-search" class="log" aria-live="polite"></section>
+    </section>
+
+    <section id="view-albums" hidden>
+      <form id="album-search-form" class="prompt-row">
+        <label class="prompt-label" for="album-query">album &gt;</label>
+        <input
+          id="album-query"
+          class="prompt-input"
+          type="text"
+          placeholder="buscar album o artista"
+          autocomplete="off"
+        />
+        <button type="submit" class="btn btn-accent">Buscar</button>
+      </form>
+
+      <div class="settings-row">
+        <label for="album-bitrate-select" class="settings-label">calidad</label>
+        <select id="album-bitrate-select" class="settings-select">
+          <option value="128">128 kbps</option>
+          <option value="192">192 kbps</option>
+          <option value="320" selected>320 kbps</option>
+        </select>
+      </div>
+
+      <ul id="album-results" class="results"></ul>
+      <button id="album-load-more" class="btn btn-ghost load-more" type="button" hidden>Mas Resultados...</button>
+
+      <section id="log-albums" class="log" aria-live="polite"></section>
+    </section>
+
+    <section id="view-library" hidden>
+      <div class="lib-toolbar">
+        <input id="lib-filter" class="lib-filter" type="text" placeholder="filtrar por artista o titulo..." autocomplete="off" />
+        <span id="lib-count" class="lib-count"></span>
+        <button id="lib-refresh" class="btn btn-ghost btn-sm" type="button">Actualizar</button>
+      </div>
+      <ul id="library-list" class="lib-list"></ul>
+
+      <section id="log-library" class="log" aria-live="polite"></section>
+    </section>
+  </main>
+
+  <div id="duplicate-modal" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-label="Posible duplicado">
+      <div id="duplicate-modal-text" class="modal-title"></div>
+      <div id="duplicate-modal-list" class="duplicate-list" hidden></div>
+      <div class="modal-actions">
+        <button id="duplicate-cancel" class="btn btn-ghost btn-sm" type="button">Cancelar</button>
+        <button id="duplicate-skip" class="btn btn-ghost btn-sm" type="button" hidden>Omitir y bajar el resto</button>
+        <button id="duplicate-confirm" class="btn btn-accent btn-sm" type="button">Descargar de todos modos</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="delete-modal" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-label="Confirmar eliminacion">
+      <div id="delete-modal-text" class="modal-title"></div>
+      <div class="modal-actions">
+        <button id="delete-cancel" class="btn btn-ghost btn-sm" type="button">Cancelar</button>
+        <button id="delete-confirm" class="btn btn-danger btn-sm" type="button">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="edit-modal" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-label="Editar cancion">
+      <div class="modal-title">Editar cancion</div>
+      <form id="edit-form" class="modal-form">
+        <label class="modal-field">
+          <span class="modal-field-label">Artista</span>
+          <input id="edit-modal-artist" type="text" autocomplete="off" />
+        </label>
+        <label class="modal-field">
+          <span class="modal-field-label">Titulo</span>
+          <input id="edit-modal-title" type="text" autocomplete="off" />
+        </label>
+        <div class="modal-actions">
+          <button id="edit-cancel" class="btn btn-ghost btn-sm" type="button">Cancelar</button>
+          <button class="btn btn-accent btn-sm" type="submit">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="preview-modal" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-label="Preview">
+      <video id="preview-video" class="modal-video" controls playsinline preload="none"></video>
+      <div id="preview-title" class="modal-title"></div>
+      <div id="preview-status" class="modal-status"></div>
+      <button id="preview-close" class="btn btn-ghost btn-sm" type="button">Cerrar (Esc)</button>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
