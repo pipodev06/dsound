@@ -11,16 +11,28 @@ _DEFAULT_OUTPUT_DIR = os.path.join(os.path.expanduser("~"), "Music", "dsound")
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", _DEFAULT_OUTPUT_DIR)
 MP3_BITRATE = os.getenv("MP3_BITRATE", "320")
 PORT = int(os.getenv("DSOUND_PORT", "5000"))
+# 127.0.0.1 = solo esta maquina (default). 0.0.0.0 = accesible desde otros
+# dispositivos de tu red (celular, etc.) — dsound no tiene login ni password,
+# cualquiera en la misma red podria ver/bajar/borrar tu biblioteca. Opt-in a
+# proposito via .env, nunca default.
+HOST = os.getenv("DSOUND_HOST", "127.0.0.1")
 
 
 def require_ffmpeg() -> bool:
     return shutil.which("ffmpeg") is not None
 
 
+def free_space_bytes(path: str) -> int:
+    """Espacio libre en el disco que contiene `path` (o el home si `path`
+    todavia no existe, ej. la primera vez que se usa una carpeta nueva)."""
+    check_path = path if os.path.isdir(path) else os.path.expanduser("~")
+    return shutil.disk_usage(check_path).free
+
+
 def ffmpeg_missing_message() -> str:
     return (
         "ffmpeg no encontrado en PATH. Instalalo: "
-        "winget install Gyan.FFmpeg (reiniciar terminal despues)."
+        "winget install Gyan.FFmpeg"
     )
 
 

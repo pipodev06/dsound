@@ -1,5 +1,6 @@
 .env
-downloads/
+/downloads/
 __pycache__/
 *.pyc
 test_output/
+frontend/node_modules/

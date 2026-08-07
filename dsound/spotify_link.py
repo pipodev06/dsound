@@ -3,14 +3,10 @@ import re
 
 import requests
 
-TRACK_RE = re.compile(r"open\.spotify\.com/track/([a-zA-Z0-9]+)")
+TRACK_RE = re.compile(r"open\.spotify\.com/(?:[\w-]+/)?track/([a-zA-Z0-9]+)")
 _TITLE_RE = re.compile(r'<meta property="og:title" content="([^"]*)"')
 _DESC_RE = re.compile(r'<meta property="og:description" content="([^"]*)"')
 _HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-
-
-def is_track_url(text: str) -> bool:
-    return bool(TRACK_RE.search(text or ""))
 
 
 def resolve(url: str):

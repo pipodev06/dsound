@@ -1,8 +1,12 @@
 import os
+import threading
 
 from mutagen.easyid3 import EasyID3
 
 from dsound.clean import build_filename, unique_path
+
+_cache_lock = threading.Lock()
+_tag_cache = {}  # out_dir -> {fname: (mtime, size, item)}
 
 
 def _track_path(out_dir: str, filename: str) -> str:
@@ -17,35 +21,45 @@ def list_library(out_dir: str) -> list:
     if not os.path.isdir(out_dir):
         return []
 
+    with _cache_lock:
+        cached = dict(_tag_cache.get(out_dir, {}))
+
+    current = {}
     items = []
     for fname in os.listdir(out_dir):
         if not fname.lower().endswith(".mp3"):
             continue
         path = os.path.join(out_dir, fname)
-
-        title, artist = os.path.splitext(fname)[0], ""
         try:
-            tags = EasyID3(path)
-            title = (tags.get("title") or [title])[0]
-            artist = (tags.get("artist") or [""])[0]
-        except Exception:
-            pass
-
-        try:
-            size = os.path.getsize(path)
-            mtime = os.path.getmtime(path)
+            stat = os.stat(path)
         except OSError:
-            size, mtime = 0, 0
+            continue
+        size, mtime = stat.st_size, stat.st_mtime
 
-        items.append(
-            {
+        entry = cached.get(fname)
+        if entry and entry[0] == mtime and entry[1] == size:
+            item = entry[2]
+        else:
+            title, artist = os.path.splitext(fname)[0], ""
+            try:
+                tags = EasyID3(path)
+                title = (tags.get("title") or [title])[0]
+                artist = (tags.get("artist") or [""])[0]
+            except Exception:
+                pass
+            item = {
                 "filename": fname,
                 "title": title,
                 "artist": artist,
                 "size": size,
                 "mtime": mtime,
             }
-        )
+
+        current[fname] = (mtime, size, item)
+        items.append(item)
+
+    with _cache_lock:
+        _tag_cache[out_dir] = current
 
     items.sort(key=lambda x: x["mtime"], reverse=True)
     return items
