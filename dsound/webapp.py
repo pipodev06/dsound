@@ -61,6 +61,28 @@ def search():
     return jsonify({"results": results})
 
 
+PLAYLIST_LIMIT_CAP = 100
+
+
+@app.route("/api/playlist")
+def playlist():
+    url = (request.args.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "falta 'url'"}), 400
+
+    try:
+        limit = int(request.args.get("limit") or 50)
+    except ValueError:
+        limit = 50
+    limit = max(1, min(limit, PLAYLIST_LIMIT_CAP))
+
+    try:
+        results = youtube_dl.get_playlist_videos(url, limit=limit)
+    except Exception as e:
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 502
+    return jsonify({"results": results})
+
+
 ALBUM_SEARCH_LIMIT_CAP = 100
 
 
@@ -105,6 +127,20 @@ def albums_download(browse_id):
         album = albums.get_album(browse_id)
     except Exception as e:
         return jsonify({"error": f"{type(e).__name__}: {e}"}), 502
+
+    needed = sum(downloader.estimate_mp3_bytes(t.get("duration"), bitrate) for t in album["tracks"])
+    free = config.free_space_bytes(config.OUTPUT_DIR)
+    if needed > free:
+        needed_mb, free_mb = needed / (1024 * 1024), free / (1024 * 1024)
+        return (
+            jsonify(
+                {
+                    "error": f"no hay espacio suficiente: el album pesaria ~{needed_mb:.0f}MB "
+                    f"y solo tenes ~{free_mb:.0f}MB libres en la carpeta de salida."
+                }
+            ),
+            507,
+        )
 
     duplicates = []
     for t in album["tracks"]:
@@ -193,6 +229,18 @@ def job_status(job_id):
     return jsonify(job)
 
 
+@app.route("/api/jobs")
+def list_jobs():
+    return jsonify({"jobs": jobs.list_jobs()})
+
+
+@app.route("/api/jobs/<job_id>/cancel", methods=["POST"])
+def cancel_job(job_id):
+    if not jobs.cancel_job(job_id):
+        return jsonify({"error": "job no encontrado o ya termino."}), 404
+    return jsonify({"ok": True})
+
+
 @app.route("/api/library")
 def get_library():
     return jsonify({"items": library.list_library(config.OUTPUT_DIR)})
@@ -250,4 +298,4 @@ def set_output_dir():
 
 
 def run():
-    app.run(host="127.0.0.1", port=config.PORT, threaded=True)
+    app.run(host=config.HOST, port=config.PORT, threaded=True)

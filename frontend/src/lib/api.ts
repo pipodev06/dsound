@@ -1,0 +1,170 @@
+import type {
+  AlbumDetail,
+  AlbumDownloadResponse,
+  AlbumDuplicateError,
+  AlbumSummary,
+  DownloadDuplicateError,
+  DownloadOverrides,
+  DuplicateMode,
+  Job,
+  JobListItem,
+  LibraryItem,
+  OutputDirPickResponse,
+  PreviewResponse,
+  SearchResult,
+  StatusResponse,
+} from "@/types";
+
+async function getJson<T>(res: Response): Promise<T> {
+  return (await res.json()) as T;
+}
+
+export async function getStatus(): Promise<StatusResponse> {
+  const res = await fetch("/api/status");
+  return getJson(res);
+}
+
+export async function resolveSpotify(url: string): Promise<{ ok: boolean; query?: string; error?: string }> {
+  const res = await fetch(`/api/resolve-spotify?url=${encodeURIComponent(url)}`);
+  const data = await getJson<{ query?: string; error?: string }>(res);
+  return { ok: res.ok, ...data };
+}
+
+export async function search(query: string, limit: number): Promise<{ ok: boolean; results?: SearchResult[]; error?: string }> {
+  const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  const data = await getJson<{ results?: SearchResult[]; error?: string }>(res);
+  return { ok: res.ok, ...data };
+}
+
+export async function getPlaylist(url: string, limit: number): Promise<{ ok: boolean; results?: SearchResult[]; error?: string }> {
+  const res = await fetch(`/api/playlist?url=${encodeURIComponent(url)}&limit=${limit}`);
+  const data = await getJson<{ results?: SearchResult[]; error?: string }>(res);
+  return { ok: res.ok, ...data };
+}
+
+export async function searchAlbums(query: string, limit: number): Promise<{ ok: boolean; results?: AlbumSummary[]; error?: string }> {
+  const res = await fetch(`/api/albums/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  const data = await getJson<{ results?: AlbumSummary[]; error?: string }>(res);
+  return { ok: res.ok, ...data };
+}
+
+export async function getAlbum(browseId: string): Promise<AlbumDetail> {
+  const res = await fetch(`/api/albums/${encodeURIComponent(browseId)}`);
+  return getJson(res);
+}
+
+export type AlbumDownloadResult =
+  | { status: "duplicate"; data: AlbumDuplicateError }
+  | { status: "error"; error: string }
+  | { status: "ok"; data: AlbumDownloadResponse };
+
+export async function downloadAlbum(
+  browseId: string,
+  bitrate: string,
+  duplicateMode: DuplicateMode
+): Promise<AlbumDownloadResult> {
+  const res = await fetch(`/api/albums/${encodeURIComponent(browseId)}/download`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bitrate, duplicate_mode: duplicateMode }),
+  });
+  const data = await res.json();
+  if (res.status === 409 && data.duplicate) return { status: "duplicate", data };
+  if (!res.ok) return { status: "error", error: data.error || "no se pudo descargar el album." };
+  return { status: "ok", data };
+}
+
+export async function getPreview(videoId: string): Promise<{ ok: boolean; data: PreviewResponse | { error: string } }> {
+  const res = await fetch(`/api/preview/${encodeURIComponent(videoId)}`);
+  const data = await res.json();
+  return { ok: res.ok, data };
+}
+
+export type DownloadResult =
+  | { status: "duplicate"; existing: string }
+  | { status: "error"; error: string }
+  | { status: "ok"; jobId: string };
+
+export async function requestDownload(
+  webpageUrl: string,
+  titleHint: string,
+  confirm: boolean,
+  bitrate: string,
+  overrides?: DownloadOverrides
+): Promise<DownloadResult> {
+  const res = await fetch("/api/download", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      webpage_url: webpageUrl,
+      title: titleHint,
+      confirm,
+      bitrate,
+      ...(overrides || {}),
+    }),
+  });
+  const data = await res.json();
+  if (res.status === 409 && data.duplicate) {
+    const dup = data as DownloadDuplicateError;
+    return { status: "duplicate", existing: dup.existing };
+  }
+  if (!res.ok) return { status: "error", error: data.error || "no se pudo descargar." };
+  return { status: "ok", jobId: data.job_id };
+}
+
+export async function getJob(jobId: string): Promise<{ ok: boolean; job: Job }> {
+  const res = await fetch(`/api/jobs/${jobId}`);
+  const job = await getJson<Job>(res);
+  return { ok: res.ok, job };
+}
+
+export async function listJobs(): Promise<JobListItem[]> {
+  const res = await fetch("/api/jobs");
+  const data = await getJson<{ jobs: JobListItem[] }>(res);
+  return data.jobs || [];
+}
+
+export async function cancelJob(jobId: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+  return { ok: res.ok };
+}
+
+export async function getLibrary(): Promise<LibraryItem[]> {
+  const res = await fetch("/api/library");
+  const data = await getJson<{ items: LibraryItem[] }>(res);
+  return data.items || [];
+}
+
+export async function deleteLibraryItem(filename: string): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`/api/library/${encodeURIComponent(filename)}`, { method: "DELETE" });
+  const data = await res.json();
+  return { ok: res.ok, error: data.error };
+}
+
+export async function updateLibraryItem(
+  filename: string,
+  artist: string,
+  title: string
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`/api/library/${encodeURIComponent(filename)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ artist, title }),
+  });
+  const data = await res.json();
+  return { ok: res.ok, error: data.error };
+}
+
+export async function pickOutputDir(): Promise<OutputDirPickResponse> {
+  const res = await fetch("/api/output-dir/pick", { method: "POST" });
+  return getJson(res);
+}
+
+export async function setOutputDir(path: string): Promise<{ output_dir?: string }> {
+  const res = await fetch("/api/output-dir", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  return getJson(res);
+}
