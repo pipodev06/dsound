@@ -2,7 +2,6 @@ import { useImperativeHandle, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusLog } from "@/components/layout/StatusLog";
 import { ResultCard } from "@/components/search/ResultCard";
 import { SelectionBar } from "@/components/common/SelectionBar";
@@ -20,26 +19,6 @@ const PAGE_SIZE = 25;
 const SEARCH_LIMIT_CAP = 300;
 const PLAYLIST_LIMIT = 100;
 
-const RECENT_SEARCHES_KEY = "dsound:recentSearches";
-const RECENT_SEARCHES_MAX = 8;
-
-function loadRecentSearches(): string[] {
-  try {
-    const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRecentSearches(list: string[]) {
-  try {
-    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(list));
-  } catch {
-    // localStorage lleno o deshabilitado — el historial simplemente no persiste
-  }
-}
-
 interface DownloadState {
   disabled: boolean;
   label: string;
@@ -49,15 +28,15 @@ const DEFAULT_DOWNLOAD_STATE: DownloadState = { disabled: false, label: "Descarg
 
 interface SearchTabProps {
   hidden: boolean;
+  bitrate: string;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   ref?: React.Ref<TabHandle>;
 }
 
-export function SearchTab({ hidden, searchInputRef, ref }: SearchTabProps) {
+export function SearchTab({ hidden, bitrate, searchInputRef, ref }: SearchTabProps) {
   const { openPreview, openEditModal, openDuplicateModal } = useModal();
 
   const [query, setQuery] = useState("");
-  const [bitrate, setBitrate] = useState("320");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [shownCount, setShownCount] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -65,22 +44,8 @@ export function SearchTab({ hidden, searchInputRef, ref }: SearchTabProps) {
   const [overrides, setOverrides] = useState<Record<string, { artist: string; title: string }>>({});
   const [downloadState, setDownloadState] = useState<Record<string, DownloadState>>({});
   const [logs, setLogs] = useState<LogLine[]>([]);
-  const [recentSearches, setRecentSearches] = useState<string[]>(() => loadRecentSearches());
   const [searchMode, setSearchMode] = useState<"keyword" | "playlist">("keyword");
   const searchQueryRef = useRef("");
-
-  function recordRecentSearch(q: string) {
-    setRecentSearches((prev) => {
-      const next = [q, ...prev.filter((x) => x !== q)].slice(0, RECENT_SEARCHES_MAX);
-      saveRecentSearches(next);
-      return next;
-    });
-  }
-
-  function clearRecentSearches() {
-    setRecentSearches([]);
-    saveRecentSearches([]);
-  }
 
   function log(tag: LogLine["tag"], text: string) {
     setLogs((prev) => [...prev, { tag, text }]);
@@ -170,7 +135,6 @@ export function SearchTab({ hidden, searchInputRef, ref }: SearchTabProps) {
     setShownCount(0);
     setSearchMode("keyword");
     searchQueryRef.current = q;
-    recordRecentSearch(q);
     try {
       const res = await searchApi(q, PAGE_SIZE);
       if (!res.ok) {
@@ -334,9 +298,9 @@ export function SearchTab({ hidden, searchInputRef, ref }: SearchTabProps) {
 
   return (
     <div className={hidden ? "hidden" : undefined}>
-      <form className="mx-auto mb-6 flex max-w-[720px] items-center gap-3 rounded-md border border-border bg-surface px-4 py-3" onSubmit={handleSubmit}>
+      <form className="mx-auto mb-6 flex max-w-[960px] items-center gap-3 rounded-md border border-border bg-surface px-4 py-3" onSubmit={handleSubmit}>
         <Label htmlFor="query" className="font-mono font-semibold text-accent">
-          dsound &gt;
+          música &gt;
         </Label>
         <input
           id="query"
@@ -351,34 +315,6 @@ export function SearchTab({ hidden, searchInputRef, ref }: SearchTabProps) {
         />
         <Button type="submit">Buscar</Button>
       </form>
-
-      {results.length === 0 && recentSearches.length > 0 && (
-        <div className="mx-auto mb-6 flex max-w-[720px] flex-wrap items-center gap-2">
-          <span className="font-mono text-[0.72rem] text-text-muted">recientes:</span>
-          {recentSearches.map((q) => (
-            <Button key={q} type="button" variant="ghost" size="sm" onClick={() => { setQuery(q); runSearch(q); }}>
-              {q}
-            </Button>
-          ))}
-          <Button type="button" variant="ghost" size="sm" onClick={clearRecentSearches}>
-            limpiar
-          </Button>
-        </div>
-      )}
-
-      <div className="mb-6 flex items-center justify-center gap-2 font-mono text-[0.78rem] text-text-muted">
-        <Label htmlFor="bitrate-select">calidad</Label>
-        <Select value={bitrate} onValueChange={setBitrate}>
-          <SelectTrigger id="bitrate-select">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="128">128 kbps</SelectItem>
-            <SelectItem value="192">192 kbps</SelectItem>
-            <SelectItem value="320">320 kbps</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       <SelectionBar
         count={selectedIds.size}

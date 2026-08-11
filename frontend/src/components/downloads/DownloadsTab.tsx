@@ -13,7 +13,9 @@ export function DownloadsTab({ hidden }: { hidden: boolean }) {
       </div>
 
       <ul className="m-0 mb-8 flex flex-col gap-2 p-0">
-        {jobs.length === 0 && <li className="text-[0.9rem] text-text-muted">no hay descargas todavia.</li>}
+        {jobs.length === 0 && (
+          <li className="py-16 text-center text-[0.9rem] text-text-muted">No hay descargas en curso.</li>
+        )}
         {jobs.map((job) => (
           <DownloadRow key={job.id} job={job} onCancel={() => cancel(job.id)} onRetry={() => retry(job)} />
         ))}

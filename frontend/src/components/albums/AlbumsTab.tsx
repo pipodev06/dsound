@@ -2,7 +2,6 @@ import { useImperativeHandle, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusLog } from "@/components/layout/StatusLog";
 import { AlbumCard } from "@/components/albums/AlbumCard";
 import { useModal } from "@/context/ModalContext";
@@ -20,11 +19,16 @@ interface AlbumDownloadState {
 
 const DEFAULT_STATE: AlbumDownloadState = { downloading: false, label: "Descargar album completo" };
 
-export function AlbumsTab({ hidden, ref }: { hidden: boolean; ref?: React.Ref<TabHandle> }) {
+interface AlbumsTabProps {
+  hidden: boolean;
+  bitrate: string;
+  ref?: React.Ref<TabHandle>;
+}
+
+export function AlbumsTab({ hidden, bitrate, ref }: AlbumsTabProps) {
   const { openDuplicateModal } = useModal();
 
   const [query, setQuery] = useState("");
-  const [bitrate, setBitrate] = useState("320");
   const [results, setResults] = useState<AlbumSummary[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -156,7 +160,7 @@ export function AlbumsTab({ hidden, ref }: { hidden: boolean; ref?: React.Ref<Ta
 
   return (
     <div className={hidden ? "hidden" : undefined}>
-      <form className="mx-auto mb-6 flex max-w-[720px] items-center gap-3 rounded-md border border-border bg-surface px-4 py-3" onSubmit={handleSubmit}>
+      <form className="mx-auto mb-6 flex max-w-[960px] items-center gap-3 rounded-md border border-border bg-surface px-4 py-3" onSubmit={handleSubmit}>
         <Label htmlFor="album-query" className="font-mono font-semibold text-accent">
           album &gt;
         </Label>
@@ -171,20 +175,6 @@ export function AlbumsTab({ hidden, ref }: { hidden: boolean; ref?: React.Ref<Ta
         />
         <Button type="submit">Buscar</Button>
       </form>
-
-      <div className="mb-6 flex items-center justify-center gap-2 font-mono text-[0.78rem] text-text-muted">
-        <Label htmlFor="album-bitrate-select">calidad</Label>
-        <Select value={bitrate} onValueChange={setBitrate}>
-          <SelectTrigger id="album-bitrate-select">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="128">128 kbps</SelectItem>
-            <SelectItem value="192">192 kbps</SelectItem>
-            <SelectItem value="320">320 kbps</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       <ul className="m-0 mb-4 grid grid-cols-2 gap-4 p-0 sm:grid-cols-3 min-[900px]:grid-cols-4 min-[1100px]:grid-cols-5">
         {results.map((album) => (
