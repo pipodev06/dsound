@@ -4,20 +4,24 @@ Baja musica de YouTube en MP3 320kbps con tags limpios (titulo/artista + portada
 
 Uso personal. Respeta derechos de autor del contenido que descargues.
 
-## Setup
+## Instalacion
 
-1. Instalar Python 3.10+ y ffmpeg:
+Requisitos: Python 3.10+ y Node.js 18+ (Node solo hace falta si vas a tocar el frontend — para uso normal alcanza con el build ya compilado que trae el repo).
+
+1. Instalar ffmpeg:
    ```
    winget install Gyan.FFmpeg
    ```
-   (reiniciar terminal despues)
+   (reiniciar la terminal/sesion despues de instalarlo — Windows tarda en propagar el cambio de PATH a las terminales ya abiertas)
 
-2. Instalar dependencias:
+2. Clonar el repo e instalar las dependencias de Python:
    ```
+   git clone https://github.com/pipodev06/dsound.git
+   cd dsound
    pip install -r requirements.txt
    ```
 
-3. (Opcional) Copiar `.env.example` a `.env` si queres cambiar la carpeta de salida o el puerto por default.
+3. (Opcional) Copiar `.env.example` a `.env` si queres cambiar la carpeta de salida, el puerto, o el acceso desde otro dispositivo de tu red — ver [Notas](#notas).
 
 ## Uso
 
@@ -25,19 +29,27 @@ Uso personal. Respeta derechos de autor del contenido que descargues.
 python -m dsound
 ```
 
-Abre `http://127.0.0.1:5000` en el navegador (se abre solo). Desde ahi:
+Abre `http://127.0.0.1:5000` en el navegador (se abre solo). La interfaz tiene 4 pestañas:
 
-- Buscar por texto ("artista - cancion") y elegir uno o varios resultados de la grilla (5 columnas x 5 filas, "Mas Resultados..." trae mas de la misma busqueda).
-- Pegar un link directo de YouTube para bajarlo sin buscar.
-- Pegar un link de track de Spotify (`open.spotify.com/track/...`) — se resuelve a "Artista Titulo" (leyendo la pagina publica, sin login) y busca eso en YouTube.
-- "Escuchar" en cada resultado reproduce un preview embebido de YouTube antes de descargar. El link "↗" al lado abre el video en YouTube directamente.
-- "editar" en cada resultado deja corregir artista/titulo a mano antes de bajar, por si el parseo automatico del titulo del video no da bien.
-- Tildar varios resultados y usar "Descargar seleccionadas" para bajarlos todos (se procesan 2 a la vez, con estado en vivo por item).
-- Selector de calidad (128/192/320 kbps) arriba del buscador.
-- Si vas a bajar algo que ya tenes (nombre parecido), avisa antes de descargar de nuevo.
-- Pestaña "Biblioteca": lista lo que ya bajaste (leyendo los tags), con reproductor y filtro por artista/titulo.
-- Cambiar la carpeta de salida con el boton "cambiar" (abre el explorador de archivos nativo).
-- Atajos: `/` enfoca el buscador, `Esc` corta el preview activo.
+**Buscar**
+- Buscar por texto ("artista - cancion") y elegir uno o varios resultados de la grilla (paginado de a 25, "Mas Resultados..." trae mas).
+- Pegar uno o varios links de YouTube (separados por espacio o salto de linea) para bajarlos directo, sin buscar.
+- Pegar un link de playlist o canal de YouTube (`...&list=...`, `/channel/`, `/@handle`) — trae los primeros 100 videos en la misma grilla, listos para elegir y bajar.
+- Pegar un link de track de Spotify (`open.spotify.com/track/...`, incluidos los que traen prefijo de idioma como `intl-es/`) — se resuelve a "Artista Titulo" (leyendo la pagina publica, sin login) y busca eso en YouTube.
+- "Escuchar" reproduce un preview del video antes de descargar. El link "↗" abre el video en YouTube.
+- El icono de lapiz deja corregir artista/titulo a mano antes de bajar, por si el parseo automatico del titulo no da bien.
+- Tildar varios resultados y usar "Descargar seleccionadas" para bajarlos todos en paralelo.
+- Si vas a bajar algo que ya tenes (titulo/artista parecido), avisa antes de descargar de nuevo.
+
+**Álbumes**: busca álbumes completos (via YouTube Music) y los baja de una, con el mismo aviso de duplicados por si ya tenes algunos tracks.
+
+**Biblioteca**: lista lo que ya bajaste (leyendo los tags), con reproductor, filtro por artista/titulo, orden (fecha/artista/titulo/tamaño), y edicion/borrado — de a uno o en lote.
+
+**Descargas**: cola de todo lo que se esta bajando o se bajo, con opcion de cancelar una descarga en curso o reintentar una que fallo.
+
+Calidad de descarga (128/192/320 kbps) y carpeta de salida se configuran arriba a la derecha, en el header.
+
+Atajos: `/` enfoca el buscador, `Esc` cierra el modal/preview activo.
 
 ## Desarrollo del frontend
 
@@ -68,3 +80,8 @@ Esto compila a `dsound/static/`, pisando el build anterior.
 - Default de salida: `~/Music/dsound` (Windows lo muestra como "Musica/dsound", el nombre real de la carpeta es "Music"). Se puede cambiar desde la interfaz o en `.env`.
 - El puerto por default es `5000`, configurable con `DSOUND_PORT` en `.env`.
 - Por default solo escucha en `127.0.0.1` (esta maquina). Para abrirlo desde otro dispositivo de tu red (celular, etc.), poner `DSOUND_HOST=0.0.0.0` en `.env` — **dsound no tiene login ni password**, con esto activado cualquiera en tu misma red puede ver/bajar/borrar tu biblioteca, activalo solo si confias en tu red. Al arrancar con esto activado, la consola muestra la URL de red para abrir desde el otro dispositivo.
+- **dsound es una herramienta personal para uso local/propio**, pensada para correr en tu maquina (no un servicio publico): usa yt-dlp para bajar de YouTube, lo cual esta en tension con los Terminos de Servicio de YouTube. Sos responsable de como la usas y del contenido que descargues.
+
+## Licencia
+
+MIT — ver [LICENSE](LICENSE).

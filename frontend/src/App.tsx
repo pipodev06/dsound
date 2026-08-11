@@ -25,6 +25,7 @@ function AppContent() {
   const { activeCount } = useJobs();
 
   const [activeTab, setActiveTab] = useState<TabId>("search");
+  const [bitrate, setBitrate] = useState("320");
   const [outputDir, setOutputDirState] = useState("");
   const [ffmpegOk, setFfmpegOk] = useState(true);
   const [ffmpegMessage, setFfmpegMessage] = useState("");
@@ -81,7 +82,13 @@ function AppContent() {
 
   return (
     <>
-      <Header outputDir={outputDir} changing={changingFolder} onChangeFolder={handleChangeFolder} />
+      <Header
+        outputDir={outputDir}
+        changing={changingFolder}
+        onChangeFolder={handleChangeFolder}
+        bitrate={bitrate}
+        onBitrateChange={setBitrate}
+      />
 
       <main className="mx-auto max-w-[1440px] p-8">
         <FfmpegNotice visible={!ffmpegOk} message={ffmpegMessage} />
@@ -102,8 +109,8 @@ function AppContent() {
           </TabsList>
         </Tabs>
 
-        <SearchTab ref={searchTabRef} hidden={activeTab !== "search"} searchInputRef={searchInputRef} />
-        <AlbumsTab ref={albumsTabRef} hidden={activeTab !== "albums"} />
+        <SearchTab ref={searchTabRef} hidden={activeTab !== "search"} bitrate={bitrate} searchInputRef={searchInputRef} />
+        <AlbumsTab ref={albumsTabRef} hidden={activeTab !== "albums"} bitrate={bitrate} />
         <LibraryTab ref={libraryTabRef} hidden={activeTab !== "library"} active={activeTab === "library"} />
         <DownloadsTab hidden={activeTab !== "downloads"} />
       </main>
