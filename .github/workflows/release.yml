@@ -3,7 +3,8 @@ name: Binarios
 # Arma dsound listo para usar (con ffmpeg incluido) para Windows y Linux.
 # - tag v* (ej. v0.2.0): arma y publica un Release con los .zip
 # - cambios en packaging/: arma y deja los .zip como artifacts del run
-# - manual: Actions -> Binarios -> Run workflow
+# - manual: Actions -> Binarios -> Run workflow. Con "version" (ej. 0.2.0)
+#   crea el tag v<version> y publica el Release; vacio solo arma los .zip.
 on:
   push:
     tags: ["v*"]
@@ -12,6 +13,11 @@ on:
       - "packaging/**"
       - ".github/workflows/release.yml"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version a publicar (ej. 0.2.0). Vacio = solo armar los binarios"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -61,7 +67,7 @@ jobs:
           retention-days: 30
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -71,5 +77,9 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
+          # tag push: usa ese tag. Manual: crea v<version> sobre el commit que se armo
+          tag_name: ${{ inputs.version != '' && format('v{0}', inputs.version) || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: dsound ${{ inputs.version != '' && format('v{0}', inputs.version) || github.ref_name }}
           files: artifacts/*.zip
           generate_release_notes: true
