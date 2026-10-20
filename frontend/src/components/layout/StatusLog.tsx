@@ -11,8 +11,8 @@ const COLORS: Record<LogLine["tag"], string> = {
 export function StatusLog({ lines }: { lines: LogLine[] }) {
   return (
     <section className="flex flex-col-reverse gap-1 pt-4" aria-live="polite">
-      {lines.map((line, i) => (
-        <div key={i} className="flex gap-2 font-mono text-sm">
+      {lines.map((line) => (
+        <div key={line.id} className="flex gap-2 font-mono text-sm">
           <span className={`shrink-0 font-bold ${COLORS[line.tag]}`}>{TAGS[line.tag]}</span>
           <span className="text-text">{line.text}</span>
         </div>
