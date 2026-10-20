@@ -74,12 +74,21 @@ npm run build
 
 Esto compila a `dsound/static/`, pisando el build anterior.
 
+## Tests
+
+```
+pip install pytest
+python -m pytest
+```
+
+Los tests no bajan nada de internet (YouTube/Spotify se simulan). GitHub Actions corre los tests y el build del frontend en cada push (`.github/workflows/ci.yml`).
+
 ## Notas
 
 - No usa la API de Spotify para busqueda/matching: la API para desarrolladores ahora exige que la cuenta dueña de la app tenga Premium para casi cualquier llamada. El titulo/artista de cada descarga sale del propio titulo del video de YouTube (separando por " - " cuando el video lo trae asi, editable a mano si hace falta) y la portada es el thumbnail del video. Pegar un link de Spotify si funciona (ver arriba), porque solo lee la pagina publica, no pasa por el Web API.
 - Default de salida: `~/Music/dsound` (Windows lo muestra como "Musica/dsound", el nombre real de la carpeta es "Music"). Se puede cambiar desde la interfaz o en `.env`.
 - El puerto por default es `5000`, configurable con `DSOUND_PORT` en `.env`.
-- Por default solo escucha en `127.0.0.1` (esta maquina). Para abrirlo desde otro dispositivo de tu red (celular, etc.), poner `DSOUND_HOST=0.0.0.0` en `.env` — **dsound no tiene login ni password**, con esto activado cualquiera en tu misma red puede ver/bajar/borrar tu biblioteca, activalo solo si confias en tu red. Al arrancar con esto activado, la consola muestra la URL de red para abrir desde el otro dispositivo.
+- Por default solo escucha en `127.0.0.1` (esta maquina). Para abrirlo desde otro dispositivo de tu red (celular, etc.), poner `DSOUND_HOST=0.0.0.0` en `.env` — **dsound no tiene login ni password**, con esto activado cualquiera en tu misma red puede ver/bajar/borrar tu biblioteca, activalo solo si confias en tu red. Al arrancar con esto activado, la consola muestra la URL de red para abrir desde el otro dispositivo. La carpeta de salida solo se puede cambiar desde la PC donde corre dsound, y la API de biblioteca solo da acceso a los `.mp3` de esa carpeta.
 - **dsound es una herramienta personal para uso local/propio**, pensada para correr en tu maquina (no un servicio publico): usa yt-dlp para bajar de YouTube, lo cual esta en tension con los Terminos de Servicio de YouTube. Sos responsable de como la usas y del contenido que descargues.
 
 ## Licencia

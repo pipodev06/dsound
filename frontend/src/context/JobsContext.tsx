@@ -1,5 +1,5 @@
 import * as React from "react";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { cancelJob, listJobs, requestDownload } from "@/lib/api";
 import type { JobListItem } from "@/types";
@@ -15,8 +15,16 @@ interface JobsContextValue {
 
 const JobsContext = createContext<JobsContextValue | null>(null);
 
+// El poll trae una lista nueva cada 2s aunque nada haya cambiado. Si el
+// contenido es igual se conserva el array anterior, asi React no re-renderiza
+// todos los componentes que usan useJobs() en cada tick.
+function keepIfUnchanged(prev: JobListItem[], next: JobListItem[]): JobListItem[] {
+  return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+}
+
 export function JobsProvider({ children }: { children: React.ReactNode }) {
-  const [jobs, setJobs] = useState<JobListItem[]>([]);
+  const [jobs, setJobsRaw] = useState<JobListItem[]>([]);
+  const setJobs = useCallback((next: JobListItem[]) => setJobsRaw((prev) => keepIfUnchanged(prev, next)), []);
 
   useEffect(() => {
     let stopped = false;
@@ -33,12 +41,12 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
     return () => {
       stopped = true;
     };
-  }, []);
+  }, [setJobs]);
 
   const cancel = useCallback(async (id: string) => {
     await cancelJob(id);
     setJobs(await listJobs());
-  }, []);
+  }, [setJobs]);
 
   const retry = useCallback(async (job: JobListItem) => {
     const overrides =
@@ -47,11 +55,14 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         : undefined;
     await requestDownload(job.webpage_url, job.title_hint, true, job.bitrate || "320", overrides);
     setJobs(await listJobs());
-  }, []);
+  }, [setJobs]);
 
-  const activeCount = jobs.filter((j) => j.status === "queued" || j.status === "downloading").length;
+  const value = useMemo(() => {
+    const activeCount = jobs.filter((j) => j.status === "queued" || j.status === "downloading").length;
+    return { jobs, activeCount, cancel, retry };
+  }, [jobs, cancel, retry]);
 
-  return <JobsContext.Provider value={{ jobs, activeCount, cancel, retry }}>{children}</JobsContext.Provider>;
+  return <JobsContext.Provider value={value}>{children}</JobsContext.Provider>;
 }
 
 export function useJobs() {

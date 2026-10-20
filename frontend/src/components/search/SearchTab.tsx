@@ -101,8 +101,12 @@ export function SearchTab({ hidden, bitrate, searchInputRef, ref }: SearchTabPro
     log("info", "descargando enlace...");
     try {
       const res = await requestDownload(url, "", false, bitrate);
-      if (res.status !== "ok") {
-        log("err", res.status === "error" ? res.error : "no se pudo descargar.");
+      if (res.status === "duplicate") {
+        log("warn", `omitido (ya existe "${res.existing}")`);
+        return;
+      }
+      if (res.status === "error") {
+        log("err", res.error);
         return;
       }
       let lastStatus = "";
@@ -283,10 +287,8 @@ export function SearchTab({ hidden, bitrate, searchInputRef, ref }: SearchTabPro
   }
 
   function handleBatchDownload() {
-    const ids = Array.from(selectedIds);
-    for (const id of ids) {
-      const result = results.find((r) => r.id === id);
-      if (result) downloadOne(result);
+    for (const result of results) {
+      if (selectedIds.has(result.id)) downloadOne(result);
     }
     setSelectedIds(new Set());
   }
