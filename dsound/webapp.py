@@ -1,12 +1,50 @@
+import functools
 import os
+from urllib.parse import urlparse
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, abort, jsonify, request, send_from_directory
 
 from dsound import albums, config, downloader, jobs, library, native, spotify_link, youtube_dl
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
+
+LOOPBACK_ADDRS = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
+LOCAL_HOSTNAMES = {"localhost", "127.0.0.1", "::1"}
+
+
+@app.before_request
+def reject_cross_site_writes():
+    """Bloquea POST/PUT/DELETE que vienen de otra pagina abierta en el navegador
+    (CSRF): el navegador manda el header Origin en esos pedidos, y tiene que
+    ser el host de dsound o localhost (el proxy de `npm run dev` reescribe el
+    Host, asi que se acepta cualquier puerto de localhost). Pedidos sin Origin
+    (curl, scripts) pasan."""
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return None
+    origin = request.headers.get("Origin")
+    if not origin:
+        return None
+    parsed = urlparse(origin)
+    if parsed.netloc == request.host or parsed.hostname in LOCAL_HOSTNAMES:
+        return None
+    return jsonify({"error": "pedido de otro origen rechazado."}), 403
+
+
+def local_only(view):
+    """Restringe un endpoint a pedidos hechos desde esta misma maquina. Se usa
+    para cambiar la carpeta de salida: con DSOUND_HOST=0.0.0.0, alguien en la
+    red podria apuntarla a cualquier carpeta (ej. ~/.ssh) y despues leer o
+    borrar archivos de ahi via /library."""
+
+    @functools.wraps(view)
+    def wrapper(*args, **kwargs):
+        if request.remote_addr not in LOOPBACK_ADDRS:
+            return jsonify({"error": "la carpeta de salida solo se puede cambiar desde la PC donde corre dsound."}), 403
+        return view(*args, **kwargs)
+
+    return wrapper
 
 
 @app.route("/")
@@ -142,9 +180,11 @@ def albums_download(browse_id):
             507,
         )
 
+    # se lee la biblioteca una sola vez para todo el album, no una vez por track
+    library_items = library.list_library(config.OUTPUT_DIR)
     duplicates = []
     for t in album["tracks"]:
-        existing = downloader.find_duplicate(t["artist"], t["title"], config.OUTPUT_DIR)
+        existing = downloader.find_duplicate(t["artist"], t["title"], config.OUTPUT_DIR, library_items=library_items)
         if existing:
             duplicates.append({"title": t["title"], "artist": t["artist"], "existing": existing})
 
@@ -200,6 +240,9 @@ def download():
         return jsonify({"error": config.ffmpeg_missing_message()}), 409
 
     if not confirm:
+        active = jobs.find_active(webpage_url)
+        if active:
+            return jsonify({"duplicate": True, "existing": f"{active['display']} (ya esta en la cola de descargas)"}), 409
         if title_override is not None:
             artist_guess, title_guess = (artist_override or ""), title_override
         elif title_hint:
@@ -248,6 +291,10 @@ def get_library():
 
 @app.route("/library/<path:filename>")
 def serve_library_file(filename):
+    try:
+        library.track_path(config.OUTPUT_DIR, filename)
+    except FileNotFoundError:
+        abort(404)
     return send_from_directory(config.OUTPUT_DIR, filename)
 
 
@@ -275,6 +322,7 @@ def update_library_track(filename):
 
 
 @app.route("/api/output-dir/pick", methods=["POST"])
+@local_only
 def pick_output_dir():
     available, picked = native.pick_folder(config.OUTPUT_DIR)
     if not available:
@@ -287,6 +335,7 @@ def pick_output_dir():
 
 
 @app.route("/api/output-dir", methods=["POST"])
+@local_only
 def set_output_dir():
     data = request.get_json(silent=True) or {}
     path = (data.get("path") or "").strip()

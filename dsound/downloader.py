@@ -1,6 +1,7 @@
 import difflib
 import glob
 import os
+import uuid
 
 from dsound import config, library
 from dsound.clean import build_filename, strip_junk, unique_path
@@ -43,21 +44,25 @@ def _ratio(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
-def find_duplicate(artist: str, title: str, out_dir: str):
+def find_duplicate(artist: str, title: str, out_dir: str, library_items: list = None):
     """Busca un mp3 ya bajado con titulo (y artista, si se conoce ambos) parecido
     (fuzzy). Compara titulo/artista por separado, no el nombre de archivo entero
     ("artista - titulo") — comparar el string concatenado infla el ratio con
     titulos cortos, porque el prefijo del artista compartido domina la
     comparacion (caso real: "Bad Bunny - EoO" vs "Bad Bunny - Monaco" daba
     0.85 de ratio por el "Bad Bunny - " en comun, no por el titulo). Devuelve
-    el nombre del archivo existente si encuentra match, o None."""
+    el nombre del archivo existente si encuentra match, o None.
+    `library_items` permite pasar list_library() ya calculado (ej. al chequear
+    todos los tracks de un album) para no recorrer la carpeta cada vez."""
     title = (title or "").strip()
     if not os.path.isdir(out_dir) or not title:
         return None
 
     artist = (artist or "").strip()
     best_name, best_ratio = None, 0.0
-    for item in library.list_library(out_dir):
+    if library_items is None:
+        library_items = library.list_library(out_dir)
+    for item in library_items:
         existing_title = (item["title"] or "").strip()
         if not existing_title:
             continue
@@ -90,7 +95,9 @@ def download(
         raise DownloadError(config.ffmpeg_missing_message())
 
     os.makedirs(out_dir, exist_ok=True)
-    tmp_path_no_ext = os.path.join(out_dir, f"._tmp_{abs(hash(webpage_url))}")
+    # nombre temporal unico por descarga: dos descargas del mismo video a la vez
+    # (ej. un reintento mientras sigue la original) no se pisan entre si
+    tmp_path_no_ext = os.path.join(out_dir, f"._tmp_{uuid.uuid4().hex}")
 
     try:
         mp3_path, info = download_audio(
@@ -99,7 +106,7 @@ def download(
     except BaseException:
         # limpia archivos parciales (._tmp_*.mp3, .part, etc.) si la descarga se
         # corto a mitad de camino, sea por cancelacion o por cualquier otro error
-        for leftover in glob.glob(tmp_path_no_ext + "*"):
+        for leftover in glob.glob(glob.escape(tmp_path_no_ext) + ".*"):
             try:
                 os.remove(leftover)
             except OSError:

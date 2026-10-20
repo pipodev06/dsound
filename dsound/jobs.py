@@ -148,6 +148,17 @@ def list_jobs():
         return [_public(j) for j in jobs]
 
 
+def find_active(webpage_url: str):
+    """Devuelve el job (version publica) que ya esta en cola o bajando esa
+    misma URL, o None. Evita bajar dos veces lo mismo si se pide de nuevo
+    antes de que termine la primera descarga."""
+    with _lock:
+        for job in _jobs.values():
+            if job["webpage_url"] == webpage_url and job["status"] in ("queued", "downloading"):
+                return _public(job)
+    return None
+
+
 def cancel_job(job_id: str) -> bool:
     """Pide cancelar un job. Si todavia esta en cola, lo corta antes de arrancar
     la descarga. Si ya esta descargando, es best-effort (yt-dlp solo chequea

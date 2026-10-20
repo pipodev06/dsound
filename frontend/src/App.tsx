@@ -58,13 +58,17 @@ function AppContent() {
     setChangingFolder(true);
     try {
       const data = await pickOutputDir();
-      if (!data.available) {
+      if (data.error) {
+        activeTabHandle()?.log("err", data.error);
+      } else if (!data.available) {
         const manual = await openOutputDirModal(outputDir);
         if (manual) {
           const res2 = await apiSetOutputDir(manual);
           if (res2.output_dir) {
             setOutputDirState(res2.output_dir);
             activeTabHandle()?.log("ok", `carpeta cambiada a: ${res2.output_dir}`);
+          } else if (res2.error) {
+            activeTabHandle()?.log("err", res2.error);
           }
         }
       } else if (data.cancelled) {

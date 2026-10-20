@@ -15,8 +15,15 @@ import type {
   StatusResponse,
 } from "@/types";
 
+// Lee el body como JSON sin romper si el server devolvio otra cosa (ej. una
+// pagina HTML de error 500 de Flask): en ese caso devuelve un objeto con
+// `error`, asi los llamadores muestran un mensaje en vez de tirar una excepcion.
 async function getJson<T>(res: Response): Promise<T> {
-  return (await res.json()) as T;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return { error: `error del servidor (HTTP ${res.status})` } as T;
+  }
 }
 
 export async function getStatus(): Promise<StatusResponse> {
@@ -68,15 +75,15 @@ export async function downloadAlbum(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ bitrate, duplicate_mode: duplicateMode }),
   });
-  const data = await res.json();
-  if (res.status === 409 && data.duplicate) return { status: "duplicate", data };
+  const data = await getJson<{ duplicate?: boolean; error?: string }>(res);
+  if (res.status === 409 && data.duplicate) return { status: "duplicate", data: data as AlbumDuplicateError };
   if (!res.ok) return { status: "error", error: data.error || "no se pudo descargar el album." };
-  return { status: "ok", data };
+  return { status: "ok", data: data as AlbumDownloadResponse };
 }
 
 export async function getPreview(videoId: string): Promise<{ ok: boolean; data: PreviewResponse | { error: string } }> {
   const res = await fetch(`/api/preview/${encodeURIComponent(videoId)}`);
-  const data = await res.json();
+  const data = await getJson<PreviewResponse | { error: string }>(res);
   return { ok: res.ok, data };
 }
 
@@ -103,12 +110,13 @@ export async function requestDownload(
       ...(overrides || {}),
     }),
   });
-  const data = await res.json();
+  const data = await getJson<{ duplicate?: boolean; error?: string; job_id?: string }>(res);
   if (res.status === 409 && data.duplicate) {
     const dup = data as DownloadDuplicateError;
     return { status: "duplicate", existing: dup.existing };
   }
   if (!res.ok) return { status: "error", error: data.error || "no se pudo descargar." };
+  if (!data.job_id) return { status: "error", error: "respuesta inesperada del servidor." };
   return { status: "ok", jobId: data.job_id };
 }
 
@@ -137,7 +145,7 @@ export async function getLibrary(): Promise<LibraryItem[]> {
 
 export async function deleteLibraryItem(filename: string): Promise<{ ok: boolean; error?: string }> {
   const res = await fetch(`/api/library/${encodeURIComponent(filename)}`, { method: "DELETE" });
-  const data = await res.json();
+  const data = await getJson<{ error?: string }>(res);
   return { ok: res.ok, error: data.error };
 }
 
@@ -151,7 +159,7 @@ export async function updateLibraryItem(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ artist, title }),
   });
-  const data = await res.json();
+  const data = await getJson<{ error?: string }>(res);
   return { ok: res.ok, error: data.error };
 }
 
@@ -160,7 +168,7 @@ export async function pickOutputDir(): Promise<OutputDirPickResponse> {
   return getJson(res);
 }
 
-export async function setOutputDir(path: string): Promise<{ output_dir?: string }> {
+export async function setOutputDir(path: string): Promise<{ output_dir?: string; error?: string }> {
   const res = await fetch("/api/output-dir", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

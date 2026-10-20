@@ -115,9 +115,10 @@ export interface PreviewResponse {
 }
 
 export interface OutputDirPickResponse {
-  available: boolean;
+  available?: boolean;
   cancelled?: boolean;
   output_dir?: string;
+  error?: string;
 }
 
 export interface DownloadOverrides {

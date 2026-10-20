@@ -58,16 +58,32 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
   }
 
   useEffect(() => {
-    if (active) {
-      setFilter("");
-      loadLibrary();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!active) return;
+    // si se cambia de pestaña antes de que llegue la respuesta, se descarta
+    let stale = false;
+    setFilter("");
+    setVisibleCount(LIB_PAGE_STEP);
+    getLibrary()
+      .then((data) => {
+        if (!stale) setItems(data);
+      })
+      .catch(() => {
+        if (!stale) log("err", "no se pudo cargar la biblioteca.");
+      });
+    return () => {
+      stale = true;
+    };
   }, [active]);
 
-  useEffect(() => {
+  function changeFilter(value: string) {
+    setFilter(value);
     setVisibleCount(LIB_PAGE_STEP);
-  }, [filter, sortBy]);
+  }
+
+  function changeSort(value: SortKey) {
+    setSortBy(value);
+    setVisibleCount(LIB_PAGE_STEP);
+  }
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -127,14 +143,19 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
     openConfirmDelete(
       `¿Estás seguro de eliminar ${selected.length} cancion${selected.length === 1 ? "" : "es"}?`,
       async () => {
+        // los borrados son independientes entre si: se mandan todos juntos
+        const results = await Promise.all(
+          selected.map((item) =>
+            deleteLibraryItem(item.filename).catch(() => ({ ok: false, error: "fallo de red." }))
+          )
+        );
         let failed = 0;
-        for (const item of selected) {
-          const res = await deleteLibraryItem(item.filename);
+        results.forEach((res, i) => {
           if (!res.ok) {
             failed++;
-            log("err", `${item.title}: ${res.error || "no se pudo eliminar."}`);
+            log("err", `${selected[i].title}: ${res.error || "no se pudo eliminar."}`);
           }
-        }
+        });
         const ok = selected.length - failed;
         if (ok > 0) log("ok", `eliminadas ${ok} cancion${ok === 1 ? "" : "es"}`);
         setSelectedFilenames(new Set());
@@ -151,14 +172,15 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
           className="max-w-[400px] flex-1 border-0 border-b border-border bg-transparent px-1 py-2 font-mono text-[0.88rem] text-text outline-none focus:border-accent focus-visible:outline-none"
           type="text"
           placeholder="filtrar por artista o titulo..."
+          aria-label="Filtrar biblioteca por artista o titulo"
           autoComplete="off"
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={(e) => changeFilter(e.target.value)}
         />
         <span className="whitespace-nowrap text-[0.78rem] text-text-muted">
           {filtered.length} cancion{filtered.length === 1 ? "" : "es"}
         </span>
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}>
+        <Select value={sortBy} onValueChange={(v) => changeSort(v as SortKey)}>
           <SelectTrigger aria-label="Ordenar por">
             <SelectValue />
           </SelectTrigger>
