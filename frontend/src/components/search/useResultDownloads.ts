@@ -39,7 +39,7 @@ export function useResultDownloads(bitrate: string, log: Log) {
         result.title,
         confirmDuplicate,
         bitrate,
-        downloadOverrides(result, manual[result.id])
+        { ...downloadOverrides(result, manual[result.id]), thumbnail: result.thumbnail || null }
       );
       if (res.status === "duplicate") {
         setState(result.id, DEFAULT_DOWNLOAD_STATE);
@@ -68,7 +68,7 @@ export function useResultDownloads(bitrate: string, log: Log) {
         setState(result.id, DEFAULT_DOWNLOAD_STATE);
       }
     } catch {
-      log("err", `${result.title}: fallo de red.`);
+      log("err", `${result.title}: error de red.`);
       setState(result.id, DEFAULT_DOWNLOAD_STATE);
     }
   }
@@ -92,7 +92,7 @@ export function useResultDownloads(bitrate: string, log: Log) {
       else if (job.status === "cancelled") log("warn", "descarga cancelada.");
       else log("err", job.error || "no se pudo descargar.");
     } catch {
-      log("err", "fallo de red al descargar el link.");
+      log("err", "error de red al descargar el enlace.");
     }
   }
 

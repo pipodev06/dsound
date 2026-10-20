@@ -5,7 +5,7 @@ export async function pollJob(jobId: string, onTick?: (job: Job) => void): Promi
   while (true) {
     const { ok, job } = await getJob(jobId);
     if (!ok) {
-      return { status: "error", error: (job as { error?: string }).error || "el servidor perdio el rastro de esta descarga (¿se reinicio?)." };
+      return { status: "error", error: (job as { error?: string }).error || "el servidor perdió el rastro de esta descarga (¿se reinició dsound?)." };
     }
     onTick?.(job);
     if (job.status === "done" || job.status === "error" || job.status === "cancelled") return job;

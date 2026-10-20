@@ -179,3 +179,99 @@ def test_album_download_sends_year_and_track_numbers(client, enqueued, monkeypat
     res = client.post("/api/albums/xyz/download", json={})
     assert res.status_code == 200
     assert [(kw["track_number"], kw["year"], kw["album"]) for _, kw in enqueued] == [(1, "1999", "Disco"), (2, "1999", "Disco")]
+
+
+# --- ajustes, versión, abrir carpeta, cerrar -----------------------------------
+
+
+@pytest.fixture
+def saved_env(monkeypatch):
+    saved = {}
+    monkeypatch.setattr(webapp.config, "_save_env", lambda k, v: saved.__setitem__(k, v))
+    monkeypatch.setattr(webapp.config, "COOKIES_BROWSER", "")
+    monkeypatch.setattr(webapp.config, "MUSIC_METADATA", True)
+    return saved
+
+
+def test_status_reports_version_and_local(client):
+    assert client.get("/api/status").get_json()["local"] is True
+    data = client.get("/api/status", environ_base=LAN).get_json()
+    assert data["local"] is False and data["version"] == webapp.__version__
+
+
+def test_settings_roundtrip(client, saved_env):
+    assert client.get("/api/settings").get_json()["cookies_browser"] == ""
+    res = client.post("/api/settings", json={"cookies_browser": "Firefox", "music_metadata": False})
+    assert res.status_code == 200
+    assert res.get_json()["cookies_browser"] == "firefox"
+    assert res.get_json()["music_metadata"] is False
+    assert saved_env == {"DSOUND_COOKIES_BROWSER": "firefox", "DSOUND_MUSIC_METADATA": "0"}
+
+
+def test_settings_rejects_unknown_browser(client, saved_env):
+    assert client.post("/api/settings", json={"cookies_browser": "netscape"}).status_code == 400
+    assert saved_env == {}
+
+
+def test_settings_only_from_this_pc(client, saved_env):
+    assert client.post("/api/settings", json={"cookies_browser": "firefox"}, environ_base=LAN).status_code == 403
+    assert client.get("/api/settings", environ_base=LAN).status_code == 200
+
+
+def test_update_check_endpoint(client, monkeypatch):
+    monkeypatch.setattr(webapp.updates, "check", lambda: {"current": "0.3.0", "latest": "0.3.1", "url": "u", "update_available": True})
+    assert client.get("/api/update-check").get_json()["update_available"] is True
+
+
+def test_open_output_dir(client, out_dir, monkeypatch):
+    opened = []
+    monkeypatch.setattr(webapp, "_open_in_file_manager", opened.append)
+    assert client.post("/api/output-dir/open").status_code == 200
+    assert opened == [str(out_dir)]
+    assert client.post("/api/output-dir/open", environ_base=LAN).status_code == 403
+    assert len(opened) == 1
+
+
+def test_shutdown(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(webapp, "shutdown_handler", lambda: calls.append(1))
+
+    class InstantTimer:
+        def __init__(self, delay, fn):
+            self.fn = fn
+
+        def start(self):
+            self.fn()
+
+    monkeypatch.setattr(webapp.threading, "Timer", InstantTimer)
+    assert client.post("/api/shutdown", environ_base=LAN).status_code == 403
+    assert calls == []
+    assert client.post("/api/shutdown").status_code == 200
+    assert calls == [1]
+
+
+def test_shutdown_blocked_from_other_sites(client, monkeypatch):
+    monkeypatch.setattr(webapp, "shutdown_handler", lambda: pytest.fail("no debería cerrar"))
+    assert client.post("/api/shutdown", headers={"Origin": "https://evil.example"}).status_code == 403
+
+
+def test_clear_jobs_endpoint(client, monkeypatch):
+    monkeypatch.setattr(jobs, "clear_finished", lambda: 3)
+    assert client.post("/api/jobs/clear").get_json() == {"cleared": 3}
+
+
+def test_download_passes_thumbnail(client, enqueued):
+    client.post("/api/download", json={"webpage_url": "https://youtu.be/q", "thumbnail": "https://i.ytimg.com/vi/q/hq.jpg", "confirm": True})
+    client.post("/api/download", json={"webpage_url": "https://youtu.be/r", "thumbnail": "https://evil.example/x.jpg", "confirm": True})
+    assert enqueued[0][1]["thumbnail"] == "https://i.ytimg.com/vi/q/hq.jpg"
+    assert enqueued[1][1]["thumbnail"] is None
+
+
+def test_api_errors_are_friendly(client, monkeypatch):
+    def boom(q, limit=25):
+        raise RuntimeError("ERROR: [youtube] x: HTTP Error 429: Too Many Requests")
+
+    monkeypatch.setattr(webapp.downloader, "search", boom)
+    res = client.get("/api/search?q=algo")
+    assert res.status_code == 502
+    assert "demasiadas solicitudes" in res.get_json()["error"]

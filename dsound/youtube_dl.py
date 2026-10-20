@@ -1,11 +1,20 @@
 import yt_dlp
 
+from dsound import config
 from dsound.clean import parse_artist_title
 from dsound.config import MP3_BITRATE
 
 
 class CancelledError(Exception):
     """El usuario cancelo el job antes de que terminara."""
+
+
+def _with_cookies(opts: dict) -> dict:
+    """Si en Ajustes se eligió un navegador, yt-dlp usa sus cookies de YouTube
+    (evita el "confirma que no eres un bot" y permite videos con restricción de edad)."""
+    if config.COOKIES_BROWSER:
+        opts["cookiesfrombrowser"] = (config.COOKIES_BROWSER,)
+    return opts
 
 
 def _best_thumbnail(entry: dict) -> str:
@@ -63,7 +72,7 @@ def get_playlist_videos(url: str, limit: int = 50) -> list:
         "skip_download": True,
         "playlistend": limit,
     }
-    with yt_dlp.YoutubeDL(opts) as ydl:
+    with yt_dlp.YoutubeDL(_with_cookies(opts)) as ydl:
         info = ydl.extract_info(url, download=False)
     entries = info.get("entries", []) if info else []
     return _map_entries(entries)[:limit]
@@ -86,7 +95,7 @@ def get_stream_url(video_url: str) -> dict:
         "noplaylist": True,
         "skip_download": True,
     }
-    with yt_dlp.YoutubeDL(opts) as ydl:
+    with yt_dlp.YoutubeDL(_with_cookies(opts)) as ydl:
         info = ydl.extract_info(video_url, download=False)
     return {
         "stream_url": info.get("url", ""),
@@ -108,7 +117,12 @@ def _progress_percent(status: dict):
 
 
 def download_audio(
-    video_url: str, out_path_no_ext: str, bitrate: str = MP3_BITRATE, cancel_event=None, on_progress=None
+    video_url: str,
+    out_path_no_ext: str,
+    bitrate: str = MP3_BITRATE,
+    cancel_event=None,
+    on_progress=None,
+    on_info=None,
 ):
     """Descarga y convierte a mp3. Devuelve (ruta_mp3, info_dict del video).
     Si se pasa cancel_event (threading.Event) y se activa mientras yt-dlp esta
@@ -126,7 +140,11 @@ def download_audio(
     esta en cola (jobs.py corta ahi antes de llamar a esta funcion).
 
     `on_progress(phase, percent)` (opcional) recibe el avance: phase es
-    "downloading" (percent 0-100 o None si no se sabe) o "converting"."""
+    "downloading" (percent 0-100 o None si no se sabe) o "converting".
+    `on_info(info)` (opcional) se llama una vez, apenas yt-dlp conoce los datos
+    del video (titulo, miniatura), antes de que termine la descarga."""
+
+    info_sent = []
 
     def _check_cancel(_status=None):
         if cancel_event is not None and cancel_event.is_set():
@@ -134,6 +152,9 @@ def download_audio(
 
     def _progress_hook(status):
         _check_cancel()
+        if on_info is not None and not info_sent and status.get("info_dict"):
+            info_sent.append(True)
+            on_info(status["info_dict"])
         if on_progress is not None and status.get("status") in ("downloading", "finished"):
             pct = 100.0 if status.get("status") == "finished" else _progress_percent(status)
             on_progress("downloading", pct)
@@ -160,6 +181,6 @@ def download_audio(
             }
         ],
     }
-    with yt_dlp.YoutubeDL(opts) as ydl:
+    with yt_dlp.YoutubeDL(_with_cookies(opts)) as ydl:
         info = ydl.extract_info(video_url, download=True)
     return out_path_no_ext + ".mp3", info

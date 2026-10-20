@@ -38,6 +38,6 @@ describe("DownloadRow", () => {
   it("no bar once finished", () => {
     render(<DownloadRow job={{ ...job, status: "done", phase: null }} onCancel={vi.fn()} onRetry={vi.fn()} />);
     expect(screen.queryByRole("progressbar")).toBeNull();
-    expect(screen.getByText("listo")).toBeTruthy();
+    expect(screen.getByText("completada")).toBeTruthy();
   });
 });

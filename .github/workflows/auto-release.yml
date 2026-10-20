@@ -1,0 +1,63 @@
+name: Actualizar yt-dlp
+
+# YouTube cambia seguido y el ejecutable lleva una copia fija de yt-dlp. Una vez
+# por semana se revisa si salió una versión nueva de yt-dlp; si el último
+# Release no la incluye, se publica uno nuevo (sube el último número: 0.3.0 -> 0.3.1).
+on:
+  schedule:
+    - cron: "17 9 * * 1" # lunes 09:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.decide.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: ¿Hace falta un Release nuevo?
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess, urllib.request
+
+          def ver(text):
+              m = re.match(r"^v?(\d+)\.(\d+)(?:\.(\d+))?", text or "")
+              return tuple(int(x or 0) for x in m.groups()) if m else None
+
+          with urllib.request.urlopen("https://pypi.org/pypi/yt-dlp/json", timeout=30) as r:
+              ytdlp = json.load(r)["info"]["version"]
+          try:
+              rel = json.loads(subprocess.check_output(["gh", "release", "view", "--json", "tagName,body"], text=True))
+          except subprocess.CalledProcessError:
+              rel = {"tagName": "v0.0.0", "body": ""}
+
+          src = open("dsound/__init__.py").read()
+          repo_version = ver(re.search(r'"([^"]+)"', src).group(1))
+          latest = ver(rel["tagName"])
+          print(f"yt-dlp en PyPI: {ytdlp} | último Release: {rel['tagName']} | versión en el repo: {repo_version}")
+
+          new = ""
+          if f"yt-dlp {ytdlp}" not in (rel.get("body") or ""):
+              # si el repo ya tiene una versión mayor sin publicar, se publica esa
+              base = max(repo_version, latest)
+              new = ".".join(map(str, base if base > latest else (latest[0], latest[1], latest[2] + 1)))
+              print(f"Publicando v{new} con yt-dlp {ytdlp}")
+          else:
+              print("El último Release ya incluye esta versión de yt-dlp: no hay nada que hacer.")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"version={new}\n")
+          PY
+
+  release:
+    needs: check
+    if: needs.check.outputs.version != ''
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+    secrets: inherit

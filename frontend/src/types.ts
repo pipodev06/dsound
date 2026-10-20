@@ -81,6 +81,7 @@ export interface JobListItem {
   id: string;
   status: JobStatus;
   display: string;
+  thumbnail?: string | null;
   album: string | null;
   result?: { filename: string; artist: string; title: string; album?: string | null };
   error?: string;
@@ -97,6 +98,23 @@ export interface StatusResponse {
   ffmpeg: boolean;
   ffmpeg_message: string;
   output_dir: string;
+  version?: string;
+  /** true si la página se abrió en la misma PC donde se ejecuta dsound */
+  local?: boolean;
+}
+
+export interface Settings {
+  /** navegador del que se toman las cookies de YouTube ("" = ninguno) */
+  cookies_browser: string;
+  cookie_browsers: string[];
+  music_metadata: boolean;
+}
+
+export interface UpdateInfo {
+  current: string;
+  latest: string | null;
+  url: string | null;
+  update_available: boolean;
 }
 
 export interface ApiError {
@@ -158,6 +176,8 @@ export interface DownloadOverrides {
   cover_url?: string | null;
   year?: string | null;
   track_number?: number | null;
+  /** miniatura para mostrar en la pestaña Descargas */
+  thumbnail?: string | null;
 }
 
 export type LogTag = "ok" | "err" | "info" | "warn";
