@@ -31,7 +31,7 @@ export function DuplicateModal() {
           </Button>
           {modal.items && modal.items.length > 0 && (
             <Button variant="ghost" size="sm" onClick={() => resolve("skip")}>
-              Omitir y bajar el resto
+              Omitir y descargar el resto
             </Button>
           )}
           <Button size="sm" onClick={() => resolve("force")}>

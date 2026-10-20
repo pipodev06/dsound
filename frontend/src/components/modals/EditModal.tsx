@@ -40,15 +40,15 @@ export function EditModal() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && closeModal()}>
-      <DialogContent aria-label="Editar cancion">
-        <DialogTitle>Editar cancion</DialogTitle>
+      <DialogContent aria-label="Editar canción">
+        <DialogTitle>Editar canción</DialogTitle>
         <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
           <Label className="flex flex-col items-start gap-1">
             <span>Artista</span>
             <Input autoComplete="off" value={artist} onChange={(e) => setArtist(e.target.value)} />
           </Label>
           <Label className="flex flex-col items-start gap-1">
-            <span>Titulo</span>
+            <span>Título</span>
             <Input autoComplete="off" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
           </Label>
           <DialogFooter>

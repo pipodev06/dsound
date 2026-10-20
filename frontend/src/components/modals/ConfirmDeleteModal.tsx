@@ -24,7 +24,7 @@ export function ConfirmDeleteModal() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && closeModal()}>
-      <DialogContent aria-label="Confirmar eliminacion">
+      <DialogContent aria-label="Confirmar eliminación">
         <div className="text-sm text-text">{modal.text}</div>
         {modal.items && modal.items.length > 0 && (
           <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-surface-2 p-2 font-mono text-xs text-text-muted">
