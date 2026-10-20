@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { cancelJob, listJobs, requestDownload } from "@/lib/api";
+import { cancelJob, clearFinishedJobs, listJobs, requestDownload } from "@/lib/api";
 import type { JobListItem } from "@/types";
 
 const POLL_MS = 2000;
@@ -11,6 +11,7 @@ interface JobsContextValue {
   activeCount: number;
   cancel: (id: string) => Promise<void>;
   retry: (job: JobListItem) => Promise<void>;
+  clearFinished: () => Promise<void>;
 }
 
 const JobsContext = createContext<JobsContextValue | null>(null);
@@ -51,16 +52,21 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
   const retry = useCallback(async (job: JobListItem) => {
     const overrides =
       job.title_override !== null
-        ? { artist_override: job.artist_override || "", title_override: job.title_override }
-        : undefined;
+        ? { artist_override: job.artist_override || "", title_override: job.title_override, thumbnail: job.thumbnail }
+        : { thumbnail: job.thumbnail };
     await requestDownload(job.webpage_url, job.title_hint, true, job.bitrate || "320", overrides);
+    setJobs(await listJobs());
+  }, [setJobs]);
+
+  const clearFinished = useCallback(async () => {
+    await clearFinishedJobs();
     setJobs(await listJobs());
   }, [setJobs]);
 
   const value = useMemo(() => {
     const activeCount = jobs.filter((j) => j.status === "queued" || j.status === "downloading").length;
-    return { jobs, activeCount, cancel, retry };
-  }, [jobs, cancel, retry]);
+    return { jobs, activeCount, cancel, retry, clearFinished };
+  }, [jobs, cancel, retry, clearFinished]);
 
   return <JobsContext.Provider value={value}>{children}</JobsContext.Provider>;
 }

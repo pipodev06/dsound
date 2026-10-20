@@ -82,6 +82,7 @@ def download(
     year: str = None,
     track_number: int = None,
     on_progress=None,
+    on_info=None,
 ) -> dict:
     if not config.require_ffmpeg():
         raise DownloadError(config.ffmpeg_missing_message())
@@ -98,6 +99,7 @@ def download(
             bitrate=bitrate or config.MP3_BITRATE,
             cancel_event=cancel_event,
             on_progress=on_progress,
+            on_info=on_info,
         )
     except BaseException:
         # limpia archivos parciales (._tmp_*.mp3, .part, etc.) si la descarga se
@@ -144,4 +146,5 @@ def download(
         "artist": artist,
         "title": title,
         "album": album,
+        "thumbnail": cover_url_override or info.get("thumbnail") or "",
     }

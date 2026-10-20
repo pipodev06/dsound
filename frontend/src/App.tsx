@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { Header } from "@/components/layout/Header";
 import { FfmpegNotice } from "@/components/layout/FfmpegNotice";
+import { UpdateBanner } from "@/components/layout/UpdateBanner";
+import { QuitDialog } from "@/components/modals/QuitDialog";
+import { SettingsModal } from "@/components/modals/SettingsModal";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SearchTab } from "@/components/search/SearchTab";
 import { AlbumsTab } from "@/components/albums/AlbumsTab";
@@ -15,7 +18,7 @@ import { OutputDirModal } from "@/components/modals/OutputDirModal";
 import { ModalProvider, useModal } from "@/context/ModalContext";
 import { JobsProvider, useJobs } from "@/context/JobsContext";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { getStatus, pickOutputDir, setOutputDir as apiSetOutputDir } from "@/lib/api";
+import { getStatus, openOutputDir, pickOutputDir, setOutputDir as apiSetOutputDir, shutdownApp } from "@/lib/api";
 import type { TabHandle } from "@/types";
 
 type TabId = "search" | "albums" | "library" | "downloads";
@@ -30,6 +33,11 @@ function AppContent() {
   const [ffmpegOk, setFfmpegOk] = useState(true);
   const [ffmpegMessage, setFfmpegMessage] = useState("");
   const [changingFolder, setChangingFolder] = useState(false);
+  const [version, setVersion] = useState("");
+  const [isLocal, setIsLocal] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [quitOpen, setQuitOpen] = useState(false);
+  const [closed, setClosed] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTabRef = useRef<TabHandle>(null);
@@ -44,6 +52,8 @@ function AppContent() {
         setOutputDirState(data.output_dir);
         setFfmpegOk(data.ffmpeg);
         setFfmpegMessage(data.ffmpeg_message);
+        setVersion(data.version || "");
+        setIsLocal(data.local === true);
       })
       .catch(() => {});
   }, []);
@@ -52,6 +62,25 @@ function AppContent() {
     if (activeTab === "search") return searchTabRef.current;
     if (activeTab === "albums") return albumsTabRef.current;
     return libraryTabRef.current;
+  }
+
+  async function handleOpenFolder() {
+    try {
+      const res = await openOutputDir();
+      if (!res.ok) activeTabHandle()?.log("err", res.error || "no se pudo abrir la carpeta.");
+    } catch {
+      activeTabHandle()?.log("err", "error de red al abrir la carpeta.");
+    }
+  }
+
+  async function handleQuit() {
+    setQuitOpen(false);
+    try {
+      await shutdownApp();
+    } catch {
+      // el servidor se cierra: que falle la respuesta es esperable
+    }
+    setClosed(true);
   }
 
   async function handleChangeFolder() {
@@ -72,7 +101,7 @@ function AppContent() {
           }
         }
       } else if (data.cancelled) {
-        // usuario cerro el dialogo sin elegir, no hacemos nada
+        // se cerró el diálogo sin elegir: no se hace nada
       } else if (data.output_dir) {
         setOutputDirState(data.output_dir);
         activeTabHandle()?.log("ok", `carpeta cambiada a: ${data.output_dir}`);
@@ -84,12 +113,27 @@ function AppContent() {
     }
   }
 
+  if (closed) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-[560px] flex-col items-center justify-center gap-3 p-8 text-center">
+        <div className="font-mono text-xl font-semibold text-accent">dsound se cerró.</div>
+        <p className="m-0 text-sm text-text-muted">Ya puedes cerrar esta pestaña. Para volver a usarlo, abre dsound de nuevo.</p>
+      </main>
+    );
+  }
+
   return (
     <>
+      <UpdateBanner />
       <Header
         outputDir={outputDir}
+        version={version}
+        isLocal={isLocal}
         changing={changingFolder}
         onChangeFolder={handleChangeFolder}
+        onOpenFolder={handleOpenFolder}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onQuit={() => setQuitOpen(true)}
         bitrate={bitrate}
         onBitrateChange={setBitrate}
       />
@@ -116,7 +160,7 @@ function AppContent() {
         <SearchTab ref={searchTabRef} hidden={activeTab !== "search"} bitrate={bitrate} searchInputRef={searchInputRef} />
         <AlbumsTab ref={albumsTabRef} hidden={activeTab !== "albums"} bitrate={bitrate} />
         <LibraryTab ref={libraryTabRef} hidden={activeTab !== "library"} active={activeTab === "library"} />
-        <DownloadsTab hidden={activeTab !== "downloads"} />
+        <DownloadsTab hidden={activeTab !== "downloads"} canOpenFolder={isLocal} onOpenFolder={handleOpenFolder} />
       </main>
 
       <PreviewModal />
@@ -124,6 +168,17 @@ function AppContent() {
       <DuplicateModal />
       <ConfirmDeleteModal />
       <OutputDirModal />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSaved={(message) => activeTabHandle()?.log("ok", message)}
+      />
+      <QuitDialog
+        open={quitOpen}
+        activeDownloads={activeCount}
+        onCancel={() => setQuitOpen(false)}
+        onConfirm={handleQuit}
+      />
     </>
   );
 }

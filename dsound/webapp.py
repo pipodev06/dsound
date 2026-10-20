@@ -1,13 +1,19 @@
 import datetime
 import functools
 import hmac
+import logging
 import os
+import subprocess
+import sys
+import threading
 import time
 from urllib.parse import urlparse
 
 from flask import Flask, abort, jsonify, redirect, request, send_from_directory, session
 
-from dsound import albums, config, downloader, jobs, library, native, spotify_link, youtube_dl
+from dsound import __version__, albums, config, downloader, errors, jobs, library, native, spotify_link, updates, youtube_dl
+
+log = logging.getLogger("dsound.web")
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
@@ -35,6 +41,12 @@ def reject_cross_site_writes():
     return jsonify({"error": "pedido de otro origen rechazado."}), 403
 
 
+def _api_error(e, status=502):
+    """Respuesta de error con un mensaje entendible; el detalle técnico va al log."""
+    log.warning("%s %s: %s", request.method, request.path, e)
+    return jsonify({"error": errors.friendly(e)}), status
+
+
 def _is_local_request() -> bool:
     return request.remote_addr in LOOPBACK_ADDRS
 
@@ -51,7 +63,7 @@ def require_login():
     if session.get("auth") == _password_fingerprint():
         return None
     if request.path.startswith("/api/") or request.path.startswith("/library/"):
-        return jsonify({"error": "hace falta iniciar sesion.", "login": True}), 401
+        return jsonify({"error": "Necesitas iniciar sesión.", "login": True}), 401
     return redirect("/login")
 
 
@@ -64,7 +76,7 @@ def _password_fingerprint() -> str:
 _LOGIN_PAGE = """<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>dsound - iniciar sesion</title>
+<title>dsound - iniciar sesión</title>
 <style>
   :root {{ color-scheme: dark; }}
   body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0d0f12;
@@ -111,15 +123,15 @@ def logout():
 
 
 def local_only(view):
-    """Restringe un endpoint a pedidos hechos desde esta misma maquina. Se usa
-    para cambiar la carpeta de salida: con DSOUND_HOST=0.0.0.0, alguien en la
-    red podria apuntarla a cualquier carpeta (ej. ~/.ssh) y despues leer o
-    borrar archivos de ahi via /library."""
+    """Restringe un endpoint a pedidos hechos desde esta misma máquina: cambiar
+    la carpeta de salida o los ajustes, abrir la carpeta, cerrar dsound. Con
+    DSOUND_HOST=0.0.0.0, alguien en la red podría, por ejemplo, apuntar la
+    carpeta a ~/.ssh y después leer o borrar archivos de ahí vía /library."""
 
     @functools.wraps(view)
     def wrapper(*args, **kwargs):
         if request.remote_addr not in LOOPBACK_ADDRS:
-            return jsonify({"error": "la carpeta de salida solo se puede cambiar desde la PC donde corre dsound."}), 403
+            return jsonify({"error": "Esto solo se puede hacer desde la PC donde se ejecuta dsound."}), 403
         return view(*args, **kwargs)
 
     return wrapper
@@ -137,6 +149,9 @@ def status():
             "ffmpeg": config.require_ffmpeg(),
             "ffmpeg_message": config.ffmpeg_missing_message(),
             "output_dir": config.OUTPUT_DIR,
+            "version": __version__,
+            # los botones de Ajustes/Salir/Abrir carpeta solo sirven en esta PC
+            "local": _is_local_request(),
         }
     )
 
@@ -149,11 +164,11 @@ def spotify_collection():
     try:
         collection = spotify_link.get_collection(url)
     except Exception as e:
-        return jsonify({"error": f"{type(e).__name__}: {e}"}), 502
+        return _api_error(e)
     if not collection:
-        return jsonify({"error": "no se pudo leer la playlist/album de Spotify."}), 502
+        return jsonify({"error": "No se pudo leer la playlist o el álbum de Spotify."}), 502
     if not collection["tracks"]:
-        return jsonify({"error": "la playlist/album de Spotify esta vacia."}), 404
+        return jsonify({"error": "La playlist o el álbum de Spotify está vacío."}), 404
     results, missing = spotify_link.match_on_youtube(collection)
     return jsonify(
         {
@@ -174,9 +189,9 @@ def resolve_spotify():
     try:
         query = spotify_link.resolve(url)
     except Exception as e:
-        return jsonify({"error": f"{type(e).__name__}: {e}"}), 502
+        return _api_error(e)
     if not query:
-        return jsonify({"error": "no se pudo leer el link de Spotify."}), 502
+        return jsonify({"error": "No se pudo leer el enlace de Spotify."}), 502
     return jsonify({"query": query})
 
 
@@ -198,7 +213,7 @@ def search():
     try:
         results = downloader.search(query, limit=limit)
     except Exception as e:
-        return jsonify({"error": f"{type(e).__name__}: {e}"}), 502
+        return _api_error(e)
     return jsonify({"results": results})
 
 
@@ -220,7 +235,7 @@ def playlist():
     try:
         results = youtube_dl.get_playlist_videos(url, limit=limit)
     except Exception as e:
-        return jsonify({"error": f"{type(e).__name__}: {e}"}), 502
+        return _api_error(e)
     return jsonify({"results": results})
 
 
@@ -242,7 +257,7 @@ def albums_search():
     try:
         results = albums.search_albums(query, limit=limit)
     except Exception as e:
-        return jsonify({"error": f"{type(e).__name__}: {e}"}), 502
+        return _api_error(e)
     return jsonify({"results": results})
 
 
@@ -251,7 +266,7 @@ def albums_detail(browse_id):
     try:
         album = albums.get_album(browse_id)
     except Exception as e:
-        return jsonify({"error": f"{type(e).__name__}: {e}"}), 502
+        return _api_error(e)
     return jsonify(album)
 
 
@@ -267,7 +282,7 @@ def albums_download(browse_id):
     try:
         album = albums.get_album(browse_id)
     except Exception as e:
-        return jsonify({"error": f"{type(e).__name__}: {e}"}), 502
+        return _api_error(e)
 
     needed = sum(downloader.estimate_mp3_bytes(t.get("duration"), bitrate) for t in album["tracks"])
     free = config.free_space_bytes(config.OUTPUT_DIR)
@@ -276,8 +291,8 @@ def albums_download(browse_id):
         return (
             jsonify(
                 {
-                    "error": f"no hay espacio suficiente: el album pesaria ~{needed_mb:.0f}MB "
-                    f"y solo tenes ~{free_mb:.0f}MB libres en la carpeta de salida."
+                    "error": f"No hay espacio suficiente: el álbum pesaría unos {needed_mb:.0f} MB "
+                    f"y solo quedan {free_mb:.0f} MB libres en la carpeta de salida."
                 }
             ),
             507,
@@ -323,9 +338,9 @@ def preview(video_id):
     try:
         data = youtube_dl.get_stream_url(f"https://www.youtube.com/watch?v={video_id}")
     except Exception as e:
-        return jsonify({"error": f"{type(e).__name__}: {e}"}), 502
+        return _api_error(e)
     if not data.get("stream_url"):
-        return jsonify({"error": "no se encontro stream de audio."}), 502
+        return jsonify({"error": "No se encontró audio para este video."}), 502
     return jsonify(data)
 
 
@@ -392,6 +407,7 @@ def download():
         cover_url_override=_valid_cover_url(data.get("cover_url")),
         year=(str(data["year"])[:4] if data.get("year") else None),
         track_number=_clean_track_number(data.get("track_number")),
+        thumbnail=_valid_cover_url(data.get("thumbnail")),
     )
     return jsonify({"job_id": job_id})
 
@@ -400,7 +416,7 @@ def download():
 def job_status(job_id):
     job = jobs.get_job(job_id)
     if job is None:
-        return jsonify({"error": "job no encontrado"}), 404
+        return jsonify({"error": "Descarga no encontrada."}), 404
     return jsonify(job)
 
 
@@ -409,10 +425,15 @@ def list_jobs():
     return jsonify({"jobs": jobs.list_jobs()})
 
 
+@app.route("/api/jobs/clear", methods=["POST"])
+def clear_jobs():
+    return jsonify({"cleared": jobs.clear_finished()})
+
+
 @app.route("/api/jobs/<job_id>/cancel", methods=["POST"])
 def cancel_job(job_id):
     if not jobs.cancel_job(job_id):
-        return jsonify({"error": "job no encontrado o ya termino."}), 404
+        return jsonify({"error": "La descarga no existe o ya terminó."}), 404
     return jsonify({"ok": True})
 
 
@@ -435,7 +456,7 @@ def delete_library_track(filename):
     try:
         library.delete_track(config.OUTPUT_DIR, filename)
     except FileNotFoundError:
-        return jsonify({"error": "archivo no encontrado."}), 404
+        return jsonify({"error": "Archivo no encontrado."}), 404
     return jsonify({"ok": True})
 
 
@@ -449,7 +470,7 @@ def update_library_track(filename):
     try:
         result = library.update_track(config.OUTPUT_DIR, filename, artist, title)
     except FileNotFoundError:
-        return jsonify({"error": "archivo no encontrado."}), 404
+        return jsonify({"error": "Archivo no encontrado."}), 404
     return jsonify(result)
 
 
@@ -478,6 +499,72 @@ def set_output_dir():
     return jsonify({"output_dir": path})
 
 
+@app.route("/api/settings")
+def get_settings():
+    return jsonify(
+        {
+            "cookies_browser": config.COOKIES_BROWSER,
+            "cookie_browsers": list(config.COOKIE_BROWSERS),
+            "music_metadata": config.MUSIC_METADATA,
+        }
+    )
+
+
+@app.route("/api/settings", methods=["POST"])
+@local_only
+def update_settings():
+    data = request.get_json(silent=True) or {}
+    try:
+        config.save_settings(
+            cookies_browser=data.get("cookies_browser"),
+            music_metadata=data.get("music_metadata"),
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return get_settings()
+
+
+@app.route("/api/update-check")
+def update_check():
+    return jsonify(updates.check())
+
+
+def _open_in_file_manager(path: str):
+    if sys.platform == "win32":
+        os.startfile(path)  # noqa: S606 - abre el Explorador en esa carpeta
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
+
+
+@app.route("/api/output-dir/open", methods=["POST"])
+@local_only
+def open_output_dir():
+    os.makedirs(config.OUTPUT_DIR, exist_ok=True)
+    try:
+        _open_in_file_manager(config.OUTPUT_DIR)
+    except OSError as e:
+        return _api_error(e, 500)
+    return jsonify({"ok": True})
+
+
+# Lo reemplaza __main__ para cerrar también el ícono de la bandeja.
+def _default_shutdown():
+    os._exit(0)
+
+
+shutdown_handler = _default_shutdown
+
+
+@app.route("/api/shutdown", methods=["POST"])
+@local_only
+def shutdown():
+    # se responde primero y se cierra un instante después
+    threading.Timer(0.5, lambda: shutdown_handler()).start()
+    return jsonify({"ok": True})
+
+
 def configure():
     """Lo que necesita disco (clave de sesion, base de la cola). Separado de la
     importacion del modulo para que los tests no toquen ~/.dsound."""
@@ -488,7 +575,11 @@ def configure():
 
 
 def run():
+    """Servidor de producción (waitress): sin el aviso de "development server"
+    de Flask y sin una línea en la consola por cada pedido."""
+    from waitress import serve
+
     resumed = configure()
     if resumed:
-        print(f"retomando {resumed} descarga(s) pendiente(s) de la sesion anterior.")
-    app.run(host=config.HOST, port=config.PORT, threaded=True)
+        log.info("Retomando %d descarga(s) pendiente(s) de la sesión anterior.", resumed)
+    serve(app, host=config.HOST, port=config.PORT, threads=16, ident="dsound")

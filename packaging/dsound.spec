@@ -9,6 +9,16 @@ from PyInstaller.utils.hooks import collect_data_files
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
 FFMPEG_DIR = os.environ.get("DSOUND_FFMPEG_DIR", "")
 FFMPEG_NAME = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+ICON = os.path.join(ROOT, "packaging", "dsound.ico")
+
+# pystray elige su backend al ejecutarse; PyInstaller no lo detecta solo (y no
+# se puede usar collect_submodules: importar pystray falla sin entorno gráfico)
+if sys.platform == "win32":
+    PYSTRAY_BACKENDS = ["pystray._win32"]
+elif sys.platform == "darwin":
+    PYSTRAY_BACKENDS = ["pystray._darwin"]
+else:
+    PYSTRAY_BACKENDS = ["pystray._xorg", "pystray._appindicator", "pystray._gtk"]
 
 datas = [(os.path.join(ROOT, "dsound", "static"), os.path.join("dsound", "static"))]
 datas += collect_data_files("ytmusicapi")  # traducciones/locales que ytmusicapi lee en runtime
@@ -25,7 +35,7 @@ a = Analysis(
     pathex=[ROOT],
     binaries=binaries,
     datas=datas,
-    hiddenimports=[],
+    hiddenimports=PYSTRAY_BACKENDS,
     excludes=["pytest"],
     noarchive=False,
 )
@@ -37,7 +47,10 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="dsound",
-    console=True,  # la consola muestra la URL y se cierra con Ctrl+C
+    # Windows: sin ventana negra; se maneja con el ícono junto al reloj y el log
+    # va a ~/.dsound/dsound.log. Linux: se abre desde una terminal.
+    console=sys.platform != "win32",
+    icon=ICON,
     upx=False,
 )
 coll = COLLECT(exe, a.binaries, a.datas, name="dsound", upx=False)

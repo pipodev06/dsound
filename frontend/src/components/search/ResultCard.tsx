@@ -44,7 +44,7 @@ export function ResultCard({
         <button
           type="button"
           className="absolute inset-0 m-auto flex size-10 items-center justify-center rounded-full border-none bg-bg/55 text-text transition-colors hover:bg-bg/85"
-          aria-label="Escuchar preview"
+          aria-label="Escuchar vista previa"
           onClick={onListen}
         >
           <IconPlayerPlay className="size-4" />

@@ -12,8 +12,10 @@ import type {
   OutputDirPickResponse,
   PreviewResponse,
   SearchResult,
+  Settings,
   SpotifyCollectionResponse,
   StatusResponse,
+  UpdateInfo,
 } from "@/types";
 
 /** fetch + si el server pide login (dsound abierto desde otro dispositivo con
@@ -65,7 +67,7 @@ export async function getSpotifyCollection(
 ): Promise<{ ok: boolean; data?: SpotifyCollectionResponse; error?: string }> {
   const res = await apiFetch(`/api/spotify-collection?url=${encodeURIComponent(url)}`);
   const data = await getJson<SpotifyCollectionResponse & { error?: string }>(res);
-  if (!res.ok) return { ok: false, error: data.error || "no se pudo leer la playlist/album de Spotify." };
+  if (!res.ok) return { ok: false, error: data.error || "no se pudo leer la playlist o el álbum de Spotify." };
   return { ok: true, data };
 }
 
@@ -97,7 +99,7 @@ export async function downloadAlbum(
   });
   const data = await getJson<{ duplicate?: boolean; error?: string }>(res);
   if (res.status === 409 && data.duplicate) return { status: "duplicate", data: data as AlbumDuplicateError };
-  if (!res.ok) return { status: "error", error: data.error || "no se pudo descargar el album." };
+  if (!res.ok) return { status: "error", error: data.error || "no se pudo descargar el álbum." };
   return { status: "ok", data: data as AlbumDownloadResponse };
 }
 
@@ -195,4 +197,49 @@ export async function setOutputDir(path: string): Promise<{ output_dir?: string;
     body: JSON.stringify({ path }),
   });
   return getJson(res);
+}
+
+export async function clearFinishedJobs(): Promise<number> {
+  const res = await apiFetch("/api/jobs/clear", { method: "POST" });
+  const data = await getJson<{ cleared?: number }>(res);
+  return data.cleared || 0;
+}
+
+export async function openOutputDir(): Promise<{ ok: boolean; error?: string }> {
+  const res = await apiFetch("/api/output-dir/open", { method: "POST" });
+  const data = await getJson<{ error?: string }>(res);
+  return { ok: res.ok, error: data.error };
+}
+
+export async function shutdownApp(): Promise<boolean> {
+  const res = await apiFetch("/api/shutdown", { method: "POST" });
+  return res.ok;
+}
+
+export async function getSettings(): Promise<Settings> {
+  const res = await apiFetch("/api/settings");
+  return getJson(res);
+}
+
+export async function saveSettings(
+  settings: Partial<Pick<Settings, "cookies_browser" | "music_metadata">>
+): Promise<{ ok: boolean; settings?: Settings; error?: string }> {
+  const res = await apiFetch("/api/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  const data = await getJson<Settings & { error?: string }>(res);
+  if (!res.ok) return { ok: false, error: data.error || "no se pudieron guardar los ajustes." };
+  return { ok: true, settings: data };
+}
+
+export async function checkUpdate(): Promise<UpdateInfo | null> {
+  try {
+    const res = await apiFetch("/api/update-check");
+    if (!res.ok) return null;
+    return await getJson<UpdateInfo>(res);
+  } catch {
+    return null;
+  }
 }

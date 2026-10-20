@@ -106,3 +106,80 @@ def test_works_without_database(fresh_jobs):
     jobs.close()
     job_id = jobs.enqueue("https://youtu.be/a")
     assert jobs.get_job(job_id)["status"] == "queued"
+
+
+def test_pasted_link_gets_real_name_while_and_after_downloading(fresh_jobs, monkeypatch):
+    """Un link pegado llega sin título: antes quedaba como "descarga" para siempre."""
+    seen = {}
+
+    def fake_download(url, out_dir, on_info=None, **kwargs):
+        seen["before"] = jobs.get_job(job_id)["display"]
+        on_info({"title": "Rick Astley - Never Gonna Give You Up (Official Video)", "thumbnail": "https://i.ytimg.com/t.jpg"})
+        seen["during"] = jobs.get_job(job_id)
+        return {"filename": "x.mp3", "artist": "Rick Astley", "title": "Never Gonna Give You Up", "album": "Whenever"}
+
+    monkeypatch.setattr(jobs.downloader, "download", fake_download)
+    job_id = jobs.enqueue("https://youtu.be/dQw4w9WgXcQ", title_hint="")
+    jobs._run_job(job_id)
+
+    assert seen["before"] == jobs.PLACEHOLDER_DISPLAY
+    assert seen["during"]["display"] == "Rick Astley - Never Gonna Give You Up"
+    assert seen["during"]["thumbnail"] == "https://i.ytimg.com/t.jpg"
+    done = jobs.get_job(job_id)
+    assert done["display"] == "Rick Astley - Never Gonna Give You Up"
+    assert done["thumbnail"] == "https://i.ytimg.com/t.jpg"
+
+
+def test_title_hint_is_cleaned_for_display(fresh_jobs):
+    job_id = jobs.enqueue("https://youtu.be/a", title_hint="Bad Bunny - Monaco (Official Video)")
+    assert jobs.get_job(job_id)["display"] == "Bad Bunny - Monaco"
+
+
+def test_override_name_is_kept(fresh_jobs, monkeypatch):
+    def fake_download(url, out_dir, on_info=None, **kwargs):
+        on_info({"title": "Otro - Nombre"})
+        return {"filename": "x.mp3", "artist": "Pitbull", "title": "Global Warming", "album": None}
+
+    monkeypatch.setattr(jobs.downloader, "download", fake_download)
+    job_id = jobs.enqueue("https://youtu.be/a", artist_override="Pitbull", title_override="Global Warming", thumbnail="https://i.ytimg.com/a.jpg")
+    jobs._run_job(job_id)
+    job = jobs.get_job(job_id)
+    assert job["display"] == "Pitbull - Global Warming"
+    assert job["thumbnail"] == "https://i.ytimg.com/a.jpg"
+
+
+def test_errors_are_friendly(fresh_jobs, monkeypatch):
+    def fake_download(*a, **k):
+        raise RuntimeError("ERROR: [youtube] abc: Sign in to confirm you’re not a bot.")
+
+    monkeypatch.setattr(jobs.downloader, "download", fake_download)
+    job_id = jobs.enqueue("https://youtu.be/a")
+    jobs._run_job(job_id)
+    assert "no eres un bot" in jobs.get_job(job_id)["error"]
+
+
+def test_clear_finished(fresh_jobs, monkeypatch):
+    jobs.init(str(fresh_jobs))
+    monkeypatch.setattr(jobs.downloader, "download", lambda *a, **k: {"filename": "x.mp3", "artist": "", "title": "x"})
+    done = jobs.enqueue("https://youtu.be/done")
+    jobs._run_job(done)
+    pending = jobs.enqueue("https://youtu.be/pending")
+
+    assert jobs.clear_finished() == 1
+    assert [j["id"] for j in jobs.list_jobs()] == [pending]
+    jobs.close()
+    monkeypatch.setattr(jobs, "_jobs", {})
+    jobs.init(str(fresh_jobs))
+    assert jobs.get_job(done) is None  # también se borró de disco
+
+
+def test_failed_before_title_shows_link(fresh_jobs, monkeypatch):
+    def fake_download(*a, **k):
+        raise RuntimeError("ERROR: [youtube] x: Video unavailable")
+
+    monkeypatch.setattr(jobs.downloader, "download", fake_download)
+    job_id = jobs.enqueue("https://youtu.be/xyz")
+    jobs._run_job(job_id)
+    job = jobs.get_job(job_id)
+    assert job["display"] == "https://youtu.be/xyz"
+    assert "no está disponible" in job["error"]

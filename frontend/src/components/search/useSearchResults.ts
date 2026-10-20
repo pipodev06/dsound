@@ -40,13 +40,13 @@ export function useSearchResults(log: Log) {
     lastQueryRef.current = q;
     try {
       const res = await searchApi(q, PAGE_SIZE);
-      if (!res.ok) return log("err", res.error || "busqueda fallida.");
+      if (!res.ok) return log("err", res.error || "falló la búsqueda.");
       const items = res.results || [];
       if (items.length === 0) return log("warn", "sin resultados.");
       show(items);
       log("ok", `${items.length} resultado(s) para "${q}"`);
     } catch {
-      log("err", "fallo de red al buscar.");
+      log("err", "error de red al buscar.");
     }
   }
 
@@ -57,50 +57,50 @@ export function useSearchResults(log: Log) {
       const res = await getPlaylist(url, PLAYLIST_LIMIT);
       if (!res.ok) return log("err", res.error || "no se pudo leer la playlist.");
       const items = res.results || [];
-      if (items.length === 0) return log("warn", "sin videos encontrados.");
+      if (items.length === 0) return log("warn", "no se encontraron videos.");
       show(items);
-      log("ok", `${items.length} video(s) encontrados (primeros ${PLAYLIST_LIMIT} como maximo)`);
+      log("ok", `${items.length} video(s) encontrado(s) (máximo los primeros ${PLAYLIST_LIMIT})`);
     } catch {
-      log("err", "fallo de red al leer la playlist.");
+      log("err", "error de red al leer la playlist.");
     }
   }
 
   /** Track de Spotify -> "Artista Titulo" -> busqueda normal. Devuelve la
    * query resuelta para mostrarla en el buscador. */
   async function runSpotifyTrack(url: string): Promise<string | null> {
-    log("info", "leyendo link de Spotify...");
+    log("info", "leyendo enlace de Spotify...");
     reset("keyword");
     try {
       const res = await resolveSpotify(url);
       if (!res.ok || !res.query) {
-        log("err", res.error || "no se pudo leer el link de Spotify.");
+        log("err", res.error || "no se pudo leer el enlace de Spotify.");
         return null;
       }
       log("ok", `Spotify: "${res.query}"`);
       await runSearch(res.query);
       return res.query;
     } catch {
-      log("err", "fallo de red al leer el link de Spotify.");
+      log("err", "error de red al leer el enlace de Spotify.");
       return null;
     }
   }
 
   async function runSpotifyCollection(url: string) {
-    log("info", "leyendo playlist/album de Spotify y buscando cada tema en YouTube (puede tardar un poco)...");
+    log("info", "leyendo la playlist o el álbum de Spotify y buscando cada canción en YouTube (puede tardar un poco)...");
     reset("fixed");
     try {
       const res = await getSpotifyCollection(url);
-      if (!res.ok || !res.data) return log("err", res.error || "no se pudo leer el link de Spotify.");
+      if (!res.ok || !res.data) return log("err", res.error || "no se pudo leer el enlace de Spotify.");
       const { kind, name, total, results: items, missing } = res.data;
       show(items);
       // se viene a bajar la playlist/album entero: quedan todos tildados
       setSelectedIds(new Set(items.map((r) => r.id)));
-      const what = kind === "album" ? "album" : "playlist";
-      log("ok", `Spotify ${what} "${name}": ${items.length} de ${total} tema(s) encontrados en YouTube`);
+      const what = kind === "album" ? "álbum" : "playlist";
+      log("ok", `Spotify ${what} "${name}": ${items.length} de ${total} canción(es) encontrada(s) en YouTube`);
       if (missing.length > 0) log("warn", `sin coincidencia en YouTube: ${missing.join(", ")}`);
-      if (items.length > 0) log("info", 'quedaron todos seleccionados: usa "Descargar seleccionadas" para bajarlos.');
+      if (items.length > 0) log("info", 'quedaron todas seleccionadas: usa "Descargar seleccionadas" para descargarlas.');
     } catch {
-      log("err", "fallo de red al leer el link de Spotify.");
+      log("err", "error de red al leer el enlace de Spotify.");
     }
   }
 
@@ -114,13 +114,13 @@ export function useSearchResults(log: Log) {
     try {
       const nextLimit = Math.min(results.length + PAGE_SIZE, SEARCH_LIMIT_CAP);
       const res = await searchApi(lastQueryRef.current, nextLimit);
-      if (!res.ok) return log("err", res.error || "no se pudieron cargar mas resultados.");
+      if (!res.ok) return log("err", res.error || "no se pudieron cargar más resultados.");
       const newResults = res.results || [];
-      if (newResults.length <= results.length) return log("info", "no hay mas resultados.");
+      if (newResults.length <= results.length) return log("info", "no hay más resultados.");
       setResults(newResults);
       setShownCount((prev) => Math.min(prev + PAGE_SIZE, newResults.length));
     } catch {
-      log("err", "fallo de red al cargar mas resultados.");
+      log("err", "error de red al cargar más resultados.");
     } finally {
       setLoadingMore(false);
     }

@@ -6,6 +6,7 @@ visibles en la pestaña Descargas un rato. Sin `init` (ej. en tests) funciona
 igual, solo en memoria."""
 
 import json
+import logging
 import os
 import queue
 import sqlite3
@@ -13,7 +14,10 @@ import threading
 import time
 import uuid
 
-from dsound import config, downloader
+from dsound import config, downloader, errors
+from dsound.clean import parse_artist_title
+
+log = logging.getLogger("dsound.jobs")
 
 WORKER_COUNT = 4
 PRUNE_AFTER_SECONDS = 15 * 60  # cuanto queda visible un job terminado en /api/jobs
@@ -26,6 +30,8 @@ _PERSISTED_FIELDS = (
     "webpage_url",
     "title_hint",
     "display",
+    "auto_display",
+    "thumbnail",
     "bitrate",
     "artist_override",
     "title_override",
@@ -177,6 +183,16 @@ def _run_job(job_id: str):
             if percent is not None:
                 job["progress"] = round(percent, 1)
 
+    def on_info(info):
+        # un link pegado llega sin titulo: apenas yt-dlp lo conoce, se muestra
+        with _lock:
+            if job.get("auto_display") and info.get("title"):
+                artist, title = parse_artist_title(info["title"])
+                job["display"] = f"{artist} - {title}" if artist else title
+            if not job.get("thumbnail"):
+                job["thumbnail"] = info.get("thumbnail") or None
+        _save(job_id)
+
     try:
         result = downloader.download(
             job["webpage_url"],
@@ -191,21 +207,40 @@ def _run_job(job_id: str):
             year=job.get("year"),
             track_number=job.get("track_number"),
             on_progress=on_progress,
+            on_info=on_info,
         )
-        _finish(job_id, status="done", result=result, progress=100.0)
+        final_name = f"{result['artist']} - {result['title']}" if result.get("artist") else result["title"]
+        _finish(
+            job_id,
+            status="done",
+            result=result,
+            progress=100.0,
+            display=final_name,
+            thumbnail=job.get("thumbnail") or result.get("thumbnail") or None,
+        )
     except downloader.CancelledError:
-        _finish(job_id, status="cancelled")
+        _finish(job_id, status="cancelled", **({"display": job["webpage_url"]} if job["display"] == PLACEHOLDER_DISPLAY else {}))
     except Exception as e:
-        _finish(job_id, status="error", error=str(e))
+        log.warning("descarga fallida %s (%s): %s", job_id, job["webpage_url"], e)
+        extra = {}
+        if job["display"] == PLACEHOLDER_DISPLAY:
+            extra["display"] = job["webpage_url"]  # falló antes de conocer el título
+        _finish(job_id, status="error", error=errors.friendly(e), **extra)
 
 
 # --- API publica --------------------------------------------------------------
 
 
+PLACEHOLDER_DISPLAY = "Obteniendo datos del video..."
+
+
 def _display_title(title_hint: str, artist_override, title_override) -> str:
     if title_override is not None:
         return f"{artist_override} - {title_override}" if artist_override else title_override
-    return title_hint or "descarga"
+    if title_hint:
+        artist, title = parse_artist_title(title_hint)
+        return f"{artist} - {title}" if artist else title
+    return PLACEHOLDER_DISPLAY
 
 
 def enqueue(
@@ -218,6 +253,7 @@ def enqueue(
     cover_url_override: str = None,
     year: str = None,
     track_number: int = None,
+    thumbnail: str = None,
 ) -> str:
     _ensure_workers()
     job_id = uuid.uuid4().hex[:12]
@@ -227,6 +263,9 @@ def enqueue(
             "webpage_url": webpage_url,
             "title_hint": title_hint,
             "display": _display_title(title_hint, artist_override, title_override),
+            # True = el nombre visible es provisional y se reemplaza con el real
+            "auto_display": title_override is None,
+            "thumbnail": thumbnail or cover_url_override or None,
             "bitrate": bitrate,
             "artist_override": artist_override,
             "title_override": title_override,
@@ -249,6 +288,7 @@ def _public(job: dict) -> dict:
         "id": job["id"],
         "status": job["status"],
         "display": job["display"],
+        "thumbnail": job.get("thumbnail"),
         "album": job.get("album"),
         "result": job.get("result"),
         "error": job.get("error"),
@@ -289,6 +329,18 @@ def list_jobs():
     for jid in stale:
         _delete_saved(jid)
     return public
+
+
+def clear_finished() -> int:
+    """Quita de la lista (y de disco) las descargas ya terminadas. Devuelve
+    cuantas se quitaron."""
+    with _lock:
+        finished = [jid for jid, job in _jobs.items() if job["status"] in FINISHED_STATUSES]
+        for jid in finished:
+            del _jobs[jid]
+    for jid in finished:
+        _delete_saved(jid)
+    return len(finished)
 
 
 def find_active(webpage_url: str):

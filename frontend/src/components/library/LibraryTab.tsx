@@ -106,7 +106,7 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
     openEditModal(item.artist, item.title, async (artist, title) => {
       const res = await updateLibraryItem(item.filename, artist, title);
       if (!res.ok) {
-        log("err", res.error || "no se pudo actualizar la cancion.");
+        log("err", res.error || "no se pudo actualizar la canción.");
         throw new Error(res.error || "update failed");
       }
       log("ok", `actualizado: ${artist ? artist + " - " : ""}${title}`);
@@ -119,7 +119,7 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
     openConfirmDelete(`¿Estás seguro de eliminar ${label}?`, async () => {
       const res = await deleteLibraryItem(item.filename);
       if (!res.ok) {
-        log("err", res.error || "no se pudo eliminar la cancion.");
+        log("err", res.error || "no se pudo eliminar la canción.");
         return;
       }
       log("ok", `eliminado: ${label}`);
@@ -141,12 +141,12 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
     if (selected.length === 0) return;
     const labels = selected.map((i) => `${i.title}${i.artist ? " - " + i.artist : ""}`);
     openConfirmDelete(
-      `¿Estás seguro de eliminar ${selected.length} cancion${selected.length === 1 ? "" : "es"}?`,
+      `¿Estás seguro de eliminar ${selected.length} ${selected.length === 1 ? "canción" : "canciones"}?`,
       async () => {
         // los borrados son independientes entre si: se mandan todos juntos
         const results = await Promise.all(
           selected.map((item) =>
-            deleteLibraryItem(item.filename).catch(() => ({ ok: false, error: "fallo de red." }))
+            deleteLibraryItem(item.filename).catch(() => ({ ok: false, error: "error de red." }))
           )
         );
         let failed = 0;
@@ -157,7 +157,7 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
           }
         });
         const ok = selected.length - failed;
-        if (ok > 0) log("ok", `eliminadas ${ok} cancion${ok === 1 ? "" : "es"}`);
+        if (ok > 0) log("ok", `eliminadas ${ok} ${ok === 1 ? "canción" : "canciones"}`);
         setSelectedFilenames(new Set());
         await loadLibrary();
       },
@@ -171,23 +171,23 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
         <input
           className="max-w-[400px] flex-1 border-0 border-b border-border bg-transparent px-1 py-2 font-mono text-[0.88rem] text-text outline-none focus:border-accent focus-visible:outline-none"
           type="text"
-          placeholder="filtrar por artista o titulo..."
-          aria-label="Filtrar biblioteca por artista o titulo"
+          placeholder="filtrar por artista o título..."
+          aria-label="Filtrar biblioteca por artista o título"
           autoComplete="off"
           value={filter}
           onChange={(e) => changeFilter(e.target.value)}
         />
         <span className="whitespace-nowrap text-[0.78rem] text-text-muted">
-          {filtered.length} cancion{filtered.length === 1 ? "" : "es"}
+          {filtered.length} {filtered.length === 1 ? "canción" : "canciones"}
         </span>
         <Select value={sortBy} onValueChange={(v) => changeSort(v as SortKey)}>
           <SelectTrigger aria-label="Ordenar por">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="date">Mas reciente</SelectItem>
+            <SelectItem value="date">Más reciente</SelectItem>
             <SelectItem value="artist">Artista</SelectItem>
-            <SelectItem value="title">Titulo</SelectItem>
+            <SelectItem value="title">Título</SelectItem>
             <SelectItem value="size">Tamaño</SelectItem>
           </SelectContent>
         </Select>
@@ -205,7 +205,7 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
       />
 
       <ul className="m-0 mb-8 flex flex-col gap-2 p-0">
-        {filtered.length === 0 && <li className="text-[0.9rem] text-text-muted">no hay nada bajado todavia.</li>}
+        {filtered.length === 0 && <li className="text-[0.9rem] text-text-muted">Todavía no has descargado nada.</li>}
         {visible.map((item) => (
           <LibraryRow
             key={item.filename}
