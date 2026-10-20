@@ -58,8 +58,11 @@ def tag_mp3(filepath: str, meta: dict):
         tags["artist"] = artists
     if meta.get("album"):
         tags["album"] = meta["album"]
-    if meta.get("release_date"):
-        tags["date"] = meta["release_date"][:4]
+    year = meta.get("year") or (meta.get("release_date") or "")[:4]
+    if year:
+        tags["date"] = str(year)
+    if meta.get("track_number"):
+        tags["tracknumber"] = str(meta["track_number"])
     tags.save(filepath)
 
     cover_url = meta.get("cover_url")

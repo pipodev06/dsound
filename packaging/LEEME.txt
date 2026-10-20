@@ -1,0 +1,35 @@
+dsound - musica de YouTube en MP3 con tags limpios
+==================================================
+
+Como usarlo
+-----------
+Windows: doble click en dsound.exe
+Linux:   ./dsound
+
+Se abre una consola y el navegador en http://127.0.0.1:5000.
+Para cerrar dsound, cerra esa consola (o Ctrl+C).
+
+ffmpeg ya viene incluido: no hace falta instalar nada.
+
+Configuracion (opcional)
+------------------------
+Crear un archivo .env al lado de dsound.exe con, por ejemplo:
+
+    OUTPUT_DIR=D:\Musica
+    MP3_BITRATE=320
+    DSOUND_PORT=5000
+
+    # abrir dsound desde el celular (misma red WiFi):
+    DSOUND_HOST=0.0.0.0
+    DSOUND_PASSWORD=una-contraseña-larga
+
+La cola de descargas se guarda en la carpeta .dsound de tu usuario:
+si cerras dsound con descargas pendientes, se retoman al volver a abrirlo.
+
+Windows SmartScreen puede avisar que la app "no es reconocida" porque el
+ejecutable no esta firmado: "Mas informacion" -> "Ejecutar de todas formas".
+
+Licencias
+---------
+dsound: MIT. ffmpeg (carpeta _internal/ffmpeg): LGPL, ver su LICENSE.txt.
+Codigo fuente de ffmpeg: https://github.com/BtbN/FFmpeg-Builds

@@ -1,8 +1,11 @@
+import datetime
 import functools
+import hmac
 import os
+import time
 from urllib.parse import urlparse
 
-from flask import Flask, abort, jsonify, request, send_from_directory
+from flask import Flask, abort, jsonify, redirect, request, send_from_directory, session
 
 from dsound import albums, config, downloader, jobs, library, native, spotify_link, youtube_dl
 
@@ -32,6 +35,81 @@ def reject_cross_site_writes():
     return jsonify({"error": "pedido de otro origen rechazado."}), 403
 
 
+def _is_local_request() -> bool:
+    return request.remote_addr in LOOPBACK_ADDRS
+
+
+AUTH_EXEMPT_PATHS = {"/login"}
+
+
+@app.before_request
+def require_login():
+    """Con DSOUND_PASSWORD definida, los dispositivos de la red tienen que
+    loguearse. Esta PC (localhost) entra siempre sin contraseña."""
+    if not config.PASSWORD or _is_local_request() or request.path in AUTH_EXEMPT_PATHS:
+        return None
+    if session.get("auth") == _password_fingerprint():
+        return None
+    if request.path.startswith("/api/") or request.path.startswith("/library/"):
+        return jsonify({"error": "hace falta iniciar sesion.", "login": True}), 401
+    return redirect("/login")
+
+
+def _password_fingerprint() -> str:
+    """Se guarda en la sesion en vez de un simple True: si cambias la contraseña
+    en .env, las sesiones viejas dejan de valer."""
+    return hmac.new(app.secret_key, config.PASSWORD.encode(), "sha256").hexdigest()
+
+
+_LOGIN_PAGE = """<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dsound - iniciar sesion</title>
+<style>
+  :root {{ color-scheme: dark; }}
+  body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0d0f12;
+         color: #e6e6e6; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }}
+  form {{ width: min(320px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 12px;
+         padding: 24px; border: 1px solid #2a2f37; border-radius: 8px; background: #14171c; }}
+  h1 {{ margin: 0 0 4px; font-size: 1.1rem; color: #3ddc84; }}
+  input {{ padding: 10px; border-radius: 6px; border: 1px solid #2a2f37; background: #0d0f12; color: inherit;
+          font: inherit; }}
+  button {{ padding: 10px; border: 0; border-radius: 6px; background: #3ddc84; color: #06210f; font: inherit;
+           font-weight: 700; cursor: pointer; }}
+  .err {{ color: #ff6b6b; font-size: 0.85rem; margin: 0; }}
+</style></head>
+<body><form method="post" action="/login">
+  <h1>dsound &gt;</h1>
+  <label for="password">contraseña</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+  {error}
+  <button type="submit">Entrar</button>
+</form></body></html>"""
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if not config.PASSWORD or _is_local_request():
+        return redirect("/")
+    error = ""
+    if request.method == "POST":
+        given = request.form.get("password", "")
+        if hmac.compare_digest(given.encode(), config.PASSWORD.encode()):
+            session.clear()
+            session.permanent = True
+            session["auth"] = _password_fingerprint()
+            return redirect("/")
+        time.sleep(1)  # frena intentos de adivinar la contraseña por fuerza bruta
+        error = '<p class="err">contraseña incorrecta.</p>'
+    return _LOGIN_PAGE.format(error=error), (401 if error else 200)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
+
+
 def local_only(view):
     """Restringe un endpoint a pedidos hechos desde esta misma maquina. Se usa
     para cambiar la carpeta de salida: con DSOUND_HOST=0.0.0.0, alguien en la
@@ -59,6 +137,31 @@ def status():
             "ffmpeg": config.require_ffmpeg(),
             "ffmpeg_message": config.ffmpeg_missing_message(),
             "output_dir": config.OUTPUT_DIR,
+        }
+    )
+
+
+@app.route("/api/spotify-collection")
+def spotify_collection():
+    url = (request.args.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "falta 'url'"}), 400
+    try:
+        collection = spotify_link.get_collection(url)
+    except Exception as e:
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 502
+    if not collection:
+        return jsonify({"error": "no se pudo leer la playlist/album de Spotify."}), 502
+    if not collection["tracks"]:
+        return jsonify({"error": "la playlist/album de Spotify esta vacia."}), 404
+    results, missing = spotify_link.match_on_youtube(collection)
+    return jsonify(
+        {
+            "kind": collection["kind"],
+            "name": collection["name"],
+            "total": len(collection["tracks"]),
+            "results": results,
+            "missing": missing,
         }
     )
 
@@ -207,6 +310,8 @@ def albums_download(browse_id):
             title_override=t["title"],
             album=album["title"],
             cover_url_override=album["thumbnail"],
+            year=str(album["year"]) if album.get("year") else None,
+            track_number=t.get("track_number"),
         )
         tracks.append({"title": t["title"], "artist": t["artist"], "skipped": False, "job_id": job_id})
 
@@ -222,6 +327,29 @@ def preview(video_id):
     if not data.get("stream_url"):
         return jsonify({"error": "no se encontro stream de audio."}), 502
     return jsonify(data)
+
+
+# Hosts de los que se aceptan portadas que manda el cliente (Spotify, YouTube,
+# YouTube Music). El servidor descarga esa imagen: no puede ser cualquier URL.
+COVER_HOST_SUFFIXES = (".scdn.co", ".spotifycdn.com", ".ytimg.com", ".googleusercontent.com", ".ggpht.com")
+
+
+def _valid_cover_url(url):
+    if not url:
+        return None
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    if parsed.scheme == "https" and any(host.endswith(sfx) for sfx in COVER_HOST_SUFFIXES):
+        return url
+    return None
+
+
+def _clean_track_number(value):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if 0 < number < 1000 else None
 
 
 @app.route("/api/download", methods=["POST"])
@@ -260,6 +388,10 @@ def download():
         bitrate=bitrate,
         artist_override=artist_override,
         title_override=title_override,
+        album=(data.get("album") or None),
+        cover_url_override=_valid_cover_url(data.get("cover_url")),
+        year=(str(data["year"])[:4] if data.get("year") else None),
+        track_number=_clean_track_number(data.get("track_number")),
     )
     return jsonify({"job_id": job_id})
 
@@ -346,5 +478,17 @@ def set_output_dir():
     return jsonify({"output_dir": path})
 
 
+def configure():
+    """Lo que necesita disco (clave de sesion, base de la cola). Separado de la
+    importacion del modulo para que los tests no toquen ~/.dsound."""
+    app.secret_key = config.secret_key()
+    app.config["PERMANENT_SESSION_LIFETIME"] = datetime.timedelta(days=30)
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    return jobs.init(config.jobs_db_path())
+
+
 def run():
+    resumed = configure()
+    if resumed:
+        print(f"retomando {resumed} descarga(s) pendiente(s) de la sesion anterior.")
     app.run(host=config.HOST, port=config.PORT, threaded=True)

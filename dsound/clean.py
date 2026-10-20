@@ -38,6 +38,27 @@ def strip_junk(title: str) -> str:
     return cleaned
 
 
+def parse_artist_title(raw_title: str):
+    """'Bad Bunny - Titi Me Pregunto (Official Video)' -> ('Bad Bunny', 'Titi Me Pregunto').
+    Si no hay separador 'artista - titulo' devuelve artista vacio."""
+    cleaned = strip_junk(raw_title or "")
+    if " - " in cleaned:
+        artist, title = (p.strip() for p in cleaned.split(" - ", 1))
+        if artist and title:
+            return artist, title
+    return "", (cleaned.strip() or "audio")
+
+
+_CHANNEL_SUFFIX = re.compile(r"(\s*-\s*topic|vevo|\s+official)$", re.IGNORECASE)
+
+
+def channel_artist(channel: str) -> str:
+    """Nombre de canal -> posible artista: 'Bad Bunny - Topic' -> 'Bad Bunny',
+    'RickAstleyVEVO' -> 'RickAstley'. Solo se usa como pista para validar
+    metadata, nunca como artista final directo."""
+    return _CHANNEL_SUFFIX.sub("", (channel or "").strip()).strip()
+
+
 def sanitize_filename(name: str) -> str:
     for ch in INVALID_WINDOWS_CHARS:
         name = name.replace(ch, "")

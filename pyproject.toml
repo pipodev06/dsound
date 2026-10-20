@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dsound"
+description = "Baja musica de YouTube en MP3 con tags limpios, desde una interfaz web local."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dynamic = ["version", "dependencies"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+build = ["pyinstaller>=6.10"]
+
+[project.scripts]
+dsound = "dsound.__main__:main"
+
+[tool.setuptools]
+packages = ["dsound"]
+
+[tool.setuptools.package-data]
+dsound = ["static/*", "static/assets/*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "dsound.__version__" }
+# una sola lista de dependencias: requirements.txt (la que actualiza Dependabot)
+dependencies = { file = ["requirements.txt"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

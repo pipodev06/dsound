@@ -1,0 +1,75 @@
+name: Binarios
+
+# Arma dsound listo para usar (con ffmpeg incluido) para Windows y Linux.
+# - tag v* (ej. v0.2.0): arma y publica un Release con los .zip
+# - cambios en packaging/: arma y deja los .zip como artifacts del run
+# - manual: Actions -> Binarios -> Run workflow
+on:
+  push:
+    tags: ["v*"]
+    branches: ["**"]
+    paths:
+      - "packaging/**"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            exe: dist/dsound/dsound.exe
+          - os: ubuntu-latest
+            exe: dist/dsound/dsound
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Compilar frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar dsound + PyInstaller
+        run: pip install -e ".[build]"
+
+      - name: Armar ejecutable (con ffmpeg)
+        run: python packaging/build.py
+
+      - name: Smoke test del ejecutable
+        run: python packaging/smoke_test.py ${{ matrix.exe }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsound-${{ matrix.os }}
+          path: dist/dsound-*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.zip
+          generate_release_notes: true

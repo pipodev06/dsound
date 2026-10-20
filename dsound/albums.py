@@ -3,7 +3,7 @@ from ytmusicapi import YTMusic
 _yt = None
 
 
-def _client() -> YTMusic:
+def client() -> YTMusic:
     global _yt
     if _yt is None:
         _yt = YTMusic()
@@ -17,7 +17,7 @@ def _best_thumbnail(thumbnails: list) -> str:
 
 
 def search_albums(query: str, limit: int = 20) -> list:
-    raw = _client().search(query, filter="albums", limit=limit)
+    raw = client().search(query, filter="albums", limit=limit)
     results = []
     for r in raw:
         browse_id = r.get("browseId")
@@ -37,16 +37,17 @@ def search_albums(query: str, limit: int = 20) -> list:
 
 
 def get_album(browse_id: str) -> dict:
-    a = _client().get_album(browse_id)
+    a = client().get_album(browse_id)
     artist = ", ".join(x.get("name", "") for x in (a.get("artists") or []) if x.get("name"))
     tracks = []
-    for t in a.get("tracks") or []:
+    for index, t in enumerate(a.get("tracks") or [], start=1):
         video_id = t.get("videoId")
         if not video_id:
             continue
         tracks.append(
             {
                 "video_id": video_id,
+                "track_number": t.get("trackNumber") or index,
                 "title": t.get("title") or "",
                 "artist": ", ".join(x.get("name", "") for x in (t.get("artists") or []) if x.get("name")) or artist,
                 "duration": t.get("duration_seconds") or 0,
