@@ -5,9 +5,10 @@ import { Label } from "@/components/ui/label";
 import { StatusLog } from "@/components/layout/StatusLog";
 import { AlbumCard } from "@/components/albums/AlbumCard";
 import { useModal } from "@/context/ModalContext";
+import { useLog } from "@/hooks/useLog";
 import { downloadAlbum as downloadAlbumApi, searchAlbums } from "@/lib/api";
 import { pollJob } from "@/lib/pollJob";
-import type { AlbumSummary, DuplicateMode, LogLine, TabHandle } from "@/types";
+import type { AlbumSummary, DuplicateMode, TabHandle } from "@/types";
 
 const ALBUM_PAGE_STEP = 20;
 const ALBUM_LIMIT_CAP = 100;
@@ -33,12 +34,8 @@ export function AlbumsTab({ hidden, bitrate, ref }: AlbumsTabProps) {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [downloadState, setDownloadState] = useState<Record<string, AlbumDownloadState>>({});
-  const [logs, setLogs] = useState<LogLine[]>([]);
+  const { logs, log, clearLogs } = useLog();
   const searchQueryRef = useRef("");
-
-  function log(tag: LogLine["tag"], text: string) {
-    setLogs((prev) => [...prev, { tag, text }]);
-  }
 
   useImperativeHandle(ref, () => ({ log }));
 
@@ -47,7 +44,8 @@ export function AlbumsTab({ hidden, bitrate, ref }: AlbumsTabProps) {
   }
 
   async function runSearch(q: string) {
-    setLogs([{ tag: "info", text: `buscando albumes de "${q}"...` }]);
+    clearLogs();
+    log("info", `buscando albumes de "${q}"...`);
     setResults([]);
     setHasMore(false);
     searchQueryRef.current = q;

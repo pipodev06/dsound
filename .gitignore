@@ -5,3 +5,6 @@ __pycache__/
 test_output/
 frontend/node_modules/
 CLAUDE.md
+build/
+dist/
+*.egg-info/

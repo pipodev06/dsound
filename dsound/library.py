@@ -9,8 +9,13 @@ _cache_lock = threading.Lock()
 _tag_cache = {}  # out_dir -> {fname: (mtime, size, item)}
 
 
-def _track_path(out_dir: str, filename: str) -> str:
+def track_path(out_dir: str, filename: str) -> str:
+    """Ruta absoluta de un mp3 de la biblioteca. Solo acepta nombres planos
+    terminados en .mp3: la API de biblioteca no tiene que poder leer, editar ni
+    borrar otros archivos que haya en la carpeta de salida."""
     safe_name = os.path.basename(filename)
+    if safe_name != filename or not safe_name.lower().endswith(".mp3"):
+        raise FileNotFoundError(filename)
     path = os.path.join(out_dir, safe_name)
     if not os.path.isfile(path):
         raise FileNotFoundError(safe_name)
@@ -66,11 +71,11 @@ def list_library(out_dir: str) -> list:
 
 
 def delete_track(out_dir: str, filename: str):
-    os.remove(_track_path(out_dir, filename))
+    os.remove(track_path(out_dir, filename))
 
 
 def update_track(out_dir: str, filename: str, artist: str, title: str) -> dict:
-    path = _track_path(out_dir, filename)
+    path = track_path(out_dir, filename)
 
     title = title.strip() or "audio"
     artist = artist.strip()
