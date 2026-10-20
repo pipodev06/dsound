@@ -1,3 +1,14 @@
+/** Tags ya decididos por el origen (ej. un album/playlist de Spotify): el mp3
+ * se baja con estos datos en vez de adivinarlos del titulo del video. */
+export interface ResultPreset {
+  artist: string;
+  title: string;
+  album: string | null;
+  cover_url: string | null;
+  year: string | null;
+  track_number: number | null;
+}
+
 export interface SearchResult {
   id: string;
   title: string;
@@ -5,6 +16,18 @@ export interface SearchResult {
   duration: number;
   thumbnail: string;
   webpage_url: string;
+  /** artista/titulo limpios (misma limpieza que usa el backend al bajar) */
+  artist_guess?: string;
+  title_guess?: string;
+  preset?: ResultPreset;
+}
+
+export interface SpotifyCollectionResponse {
+  kind: "playlist" | "album";
+  name: string;
+  total: number;
+  results: SearchResult[];
+  missing: string[];
 }
 
 export interface AlbumSummary {
@@ -43,10 +66,15 @@ export interface LibraryItem {
 
 export type JobStatus = "queued" | "downloading" | "done" | "error" | "cancelled";
 
+/** "downloading" = bajando el audio, "converting" = ffmpeg pasandolo a mp3 */
+export type JobPhase = "downloading" | "converting" | null;
+
 export interface Job {
   status: JobStatus;
-  result?: { filename: string; artist: string; title: string };
+  result?: { filename: string; artist: string; title: string; album?: string | null };
   error?: string;
+  phase?: JobPhase;
+  progress?: number | null;
 }
 
 export interface JobListItem {
@@ -54,8 +82,10 @@ export interface JobListItem {
   status: JobStatus;
   display: string;
   album: string | null;
-  result?: { filename: string; artist: string; title: string };
+  result?: { filename: string; artist: string; title: string; album?: string | null };
   error?: string;
+  phase?: JobPhase;
+  progress?: number | null;
   webpage_url: string;
   bitrate: string | null;
   title_hint: string;
@@ -124,11 +154,17 @@ export interface OutputDirPickResponse {
 export interface DownloadOverrides {
   artist_override?: string;
   title_override?: string;
+  album?: string | null;
+  cover_url?: string | null;
+  year?: string | null;
+  track_number?: number | null;
 }
 
 export type LogTag = "ok" | "err" | "info" | "warn";
 
 export interface LogLine {
+  /** unico dentro de la pestaña, para usarlo de key */
+  id: number;
   tag: LogTag;
   text: string;
 }

@@ -1,0 +1,23 @@
+version: 2
+updates:
+  # yt-dlp se rompe seguido cuando YouTube cambia algo: conviene actualizarlo rapido
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: monthly
+    groups:
+      frontend:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

@@ -1,5 +1,6 @@
 import yt_dlp
 
+from dsound.clean import parse_artist_title
 from dsound.config import MP3_BITRATE
 
 
@@ -19,10 +20,15 @@ def _map_entries(entries: list) -> list:
     for e in entries:
         if not e:
             continue
+        # misma limpieza que se usa al bajar, para que "Renombrar" arranque con
+        # el artista/titulo que el archivo va a tener de verdad
+        artist_guess, title_guess = parse_artist_title(e.get("title", ""))
         results.append(
             {
                 "id": e.get("id"),
                 "title": e.get("title", ""),
+                "artist_guess": artist_guess,
+                "title_guess": title_guess,
                 "channel": e.get("channel") or e.get("uploader") or "",
                 "duration": e.get("duration") or 0,
                 "thumbnail": _best_thumbnail(e),
@@ -91,7 +97,19 @@ def get_stream_url(video_url: str) -> dict:
     }
 
 
-def download_audio(video_url: str, out_path_no_ext: str, bitrate: str = MP3_BITRATE, cancel_event=None):
+def _progress_percent(status: dict):
+    """Porcentaje 0-100 a partir de un tick de progreso de yt-dlp, o None si
+    yt-dlp todavia no sabe el tamaño total."""
+    total = status.get("total_bytes") or status.get("total_bytes_estimate")
+    done = status.get("downloaded_bytes")
+    if not total or done is None:
+        return None
+    return max(0.0, min(100.0, done * 100.0 / total))
+
+
+def download_audio(
+    video_url: str, out_path_no_ext: str, bitrate: str = MP3_BITRATE, cancel_event=None, on_progress=None
+):
     """Descarga y convierte a mp3. Devuelve (ruta_mp3, info_dict del video).
     Si se pasa cancel_event (threading.Event) y se activa mientras yt-dlp esta
     bajando el archivo, corta tirando CancelledError — best-effort, con 3 huecos
@@ -105,15 +123,26 @@ def download_audio(video_url: str, out_path_no_ext: str, bitrate: str = MP3_BITR
     Para canciones sueltas (algunos minutos) esto no se nota — el hueco importa
     sobre todo en videos muy largos, donde la conversion tarda de verdad. El
     caso mas util y 100% confiable sigue siendo cancelar un job que todavia
-    esta en cola (jobs.py corta ahi antes de llamar a esta funcion)."""
+    esta en cola (jobs.py corta ahi antes de llamar a esta funcion).
+
+    `on_progress(phase, percent)` (opcional) recibe el avance: phase es
+    "downloading" (percent 0-100 o None si no se sabe) o "converting"."""
 
     def _check_cancel(_status=None):
         if cancel_event is not None and cancel_event.is_set():
             raise CancelledError()
 
+    def _progress_hook(status):
+        _check_cancel()
+        if on_progress is not None and status.get("status") in ("downloading", "finished"):
+            pct = 100.0 if status.get("status") == "finished" else _progress_percent(status)
+            on_progress("downloading", pct)
+
     def _check_cancel_pp(status):
         if status.get("status") == "started":
             _check_cancel()
+            if on_progress is not None:
+                on_progress("converting", None)
 
     opts = {
         "format": "bestaudio/best",
@@ -121,7 +150,7 @@ def download_audio(video_url: str, out_path_no_ext: str, bitrate: str = MP3_BITR
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "progress_hooks": [_check_cancel],
+        "progress_hooks": [_progress_hook],
         "postprocessor_hooks": [_check_cancel_pp],
         "postprocessors": [
             {

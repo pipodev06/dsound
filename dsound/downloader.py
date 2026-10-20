@@ -3,8 +3,8 @@ import glob
 import os
 import uuid
 
-from dsound import config, library
-from dsound.clean import build_filename, strip_junk, unique_path
+from dsound import config, library, metadata
+from dsound.clean import build_filename, parse_artist_title, unique_path
 from dsound.tagger import tag_mp3
 from dsound.youtube_dl import CancelledError, download_audio, search_youtube
 
@@ -14,17 +14,6 @@ ARTIST_DUPLICATE_THRESHOLD = 0.6
 
 class DownloadError(Exception):
     pass
-
-
-def parse_artist_title(raw_title: str):
-    """'Bad Bunny - Titi Me Pregunto (Official Video)' -> ('Bad Bunny', 'Titi Me Pregunto').
-    Si no hay separador 'artista - titulo' devuelve artista vacio."""
-    cleaned = strip_junk(raw_title)
-    if " - " in cleaned:
-        artist, title = (p.strip() for p in cleaned.split(" - ", 1))
-        if artist and title:
-            return artist, title
-    return "", (cleaned.strip() or "audio")
 
 
 def search(query: str, limit: int = 8) -> list:
@@ -90,6 +79,9 @@ def download(
     album: str = None,
     cover_url_override: str = None,
     cancel_event=None,
+    year: str = None,
+    track_number: int = None,
+    on_progress=None,
 ) -> dict:
     if not config.require_ffmpeg():
         raise DownloadError(config.ffmpeg_missing_message())
@@ -101,7 +93,11 @@ def download(
 
     try:
         mp3_path, info = download_audio(
-            webpage_url, tmp_path_no_ext, bitrate=bitrate or config.MP3_BITRATE, cancel_event=cancel_event
+            webpage_url,
+            tmp_path_no_ext,
+            bitrate=bitrate or config.MP3_BITRATE,
+            cancel_event=cancel_event,
+            on_progress=on_progress,
         )
     except BaseException:
         # limpia archivos parciales (._tmp_*.mp3, .part, etc.) si la descarga se
@@ -114,10 +110,17 @@ def download(
         raise
 
     if title_override is not None:
+        # el usuario (o el album/playlist de origen) ya dijo como se llama: se respeta
         artist, title = (artist_override or ""), (title_override.strip() or "audio")
     else:
         raw_title = title_hint or info.get("title") or "audio"
         artist, title = parse_artist_title(raw_title)
+        found = metadata.lookup(info, artist, title)
+        if found:
+            artist, title = found["artist"], found["title"]
+            album = album or found.get("album")
+            year = year or found.get("year")
+            cover_url_override = cover_url_override or found.get("cover_url")
 
     filename = build_filename(artist, title).lstrip(" -")
     final_path = unique_path(os.path.join(out_dir, filename))
@@ -129,6 +132,10 @@ def download(
     }
     if album:
         meta["album"] = album
+    if year:
+        meta["year"] = year
+    if track_number:
+        meta["track_number"] = track_number
     tag_mp3(mp3_path, meta)
     os.replace(mp3_path, final_path)
 
@@ -136,4 +143,5 @@ def download(
         "filename": os.path.basename(final_path),
         "artist": artist,
         "title": title,
+        "album": album,
     }

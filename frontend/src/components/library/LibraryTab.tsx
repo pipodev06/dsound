@@ -6,8 +6,9 @@ import { StatusLog } from "@/components/layout/StatusLog";
 import { SelectionBar } from "@/components/common/SelectionBar";
 import { LibraryRow } from "@/components/library/LibraryRow";
 import { useModal } from "@/context/ModalContext";
+import { useLog } from "@/hooks/useLog";
 import { deleteLibraryItem, getLibrary, updateLibraryItem } from "@/lib/api";
-import type { LibraryItem, LogLine, TabHandle } from "@/types";
+import type { LibraryItem, TabHandle } from "@/types";
 
 const LIB_PAGE_STEP = 25;
 
@@ -39,12 +40,8 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
   const [sortBy, setSortBy] = useState<SortKey>("date");
   const [visibleCount, setVisibleCount] = useState(LIB_PAGE_STEP);
   const [refreshing, setRefreshing] = useState(false);
-  const [logs, setLogs] = useState<LogLine[]>([]);
+  const { logs, log } = useLog();
   const [selectedFilenames, setSelectedFilenames] = useState<Set<string>>(new Set());
-
-  function log(tag: LogLine["tag"], text: string) {
-    setLogs((prev) => [...prev, { tag, text }]);
-  }
 
   useImperativeHandle(ref, () => ({ log }));
 
@@ -73,7 +70,7 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
     return () => {
       stale = true;
     };
-  }, [active]);
+  }, [active, log]);
 
   function changeFilter(value: string) {
     setFilter(value);
@@ -98,8 +95,11 @@ export function LibraryTab({ hidden, active, ref }: { hidden: boolean; active: b
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadLibrary();
-    setRefreshing(false);
+    try {
+      await loadLibrary();
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   function handleEdit(item: LibraryItem) {
