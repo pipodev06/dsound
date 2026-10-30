@@ -97,6 +97,9 @@ def get_stream_url(video_url: str) -> dict:
     }
     with yt_dlp.YoutubeDL(_with_cookies(opts)) as ydl:
         info = ydl.extract_info(video_url, download=False)
+    # Un directo solo viene en HLS (.m3u8), que <video> no reproduce en Firefox.
+    if info.get("is_live"):
+        raise ValueError("Es una transmisión en vivo: no se puede previsualizar. Ábrela en YouTube con ↗.")
     return {
         "stream_url": info.get("url", ""),
         "has_video": info.get("vcodec") not in (None, "none"),
