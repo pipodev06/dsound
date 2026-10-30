@@ -79,15 +79,15 @@ def get_playlist_videos(url: str, limit: int = 50) -> list:
 
 
 def get_stream_url(video_url: str) -> dict:
-    """Saca la URL directa de un stream video+audio (sin descargar nada), para
-    preview en el navegador con <video> nativo. Preferimos mp4 muxeado hasta
-    480p (alcanza para identificar el video y pesa poco); si no hay, cae a solo
-    audio. Funciona tambien con videos que bloquean el embed (Vevo/sellos)."""
+    """URLs para la vista previa, sin descargar nada. YouTube ya casi no da
+    video y audio en un solo archivo: lo normal es elegir video mp4 (H.264,
+    hasta 480p) y audio m4a por separado (`video_url` + `audio_url`, que
+    preview.py une con ffmpeg). `stream_url` siempre se puede reproducir tal
+    cual: el archivo con video y audio si existe, si no, solo el audio."""
     opts = {
         "format": (
-            "best[ext=mp4][vcodec!=none][acodec!=none][height<=480]"
-            "/best[vcodec!=none][acodec!=none][height<=480]"
-            "/best[vcodec!=none][acodec!=none]"
+            "bestvideo[ext=mp4][vcodec^=avc1][height<=480][protocol=https]+bestaudio[ext=m4a][protocol=https]"
+            "/best[vcodec!=none][acodec!=none][height<=480][protocol=https]"
             "/bestaudio[ext=m4a]/bestaudio"
         ),
         "quiet": True,
@@ -100,13 +100,24 @@ def get_stream_url(video_url: str) -> dict:
     # Un directo solo viene en HLS (.m3u8), que <video> no reproduce en Firefox.
     if info.get("is_live"):
         raise ValueError("Es una transmisión en vivo: no se puede previsualizar. Ábrela en YouTube con ↗.")
-    return {
+    data = {
         "stream_url": info.get("url", ""),
         "has_video": info.get("vcodec") not in (None, "none"),
         "title": info.get("title", ""),
         "duration": info.get("duration") or 0,
         "thumbnail": _best_thumbnail(info),
     }
+    pair = info.get("requested_formats") or []
+    if len(pair) == 2:
+        video, audio = pair
+        data.update(
+            stream_url=audio.get("url", ""),
+            has_video=False,
+            video_url=video.get("url", ""),
+            audio_url=audio.get("url", ""),
+            user_agent=(video.get("http_headers") or {}).get("User-Agent", ""),
+        )
+    return data
 
 
 def _progress_percent(status: dict):

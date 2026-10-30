@@ -9,9 +9,10 @@ import threading
 import time
 from urllib.parse import urlparse
 
-from flask import Flask, abort, jsonify, redirect, request, send_from_directory, session
+from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory, session
 
 from dsound import __version__, albums, config, downloader, errors, jobs, library, native, spotify_link, updates, youtube_dl
+from dsound import preview as preview_stream
 
 log = logging.getLogger("dsound.web")
 
@@ -341,7 +342,20 @@ def preview(video_id):
         return _api_error(e)
     if not data.get("stream_url"):
         return jsonify({"error": "No se encontró audio para este video."}), 502
+    video_url, audio_url = data.pop("video_url", ""), data.pop("audio_url", "")
+    user_agent = data.pop("user_agent", "")
+    if video_url and audio_url and config.require_ffmpeg():
+        data["stream_url"] = preview_stream.remember(video_id, video_url, audio_url, user_agent)
+        data["has_video"] = True
     return jsonify(data)
+
+
+@app.route("/api/preview/<video_id>/stream")
+def preview_video(video_id):
+    body = preview_stream.stream(video_id)
+    if body is None:
+        return jsonify({"error": "La vista previa expiró. Vuelve a abrirla."}), 404
+    return Response(body, mimetype="video/mp4", direct_passthrough=True)
 
 
 # Hosts de los que se aceptan portadas que manda el cliente (Spotify, YouTube,
