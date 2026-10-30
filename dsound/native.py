@@ -18,7 +18,7 @@ def pick_folder(initial_dir: str):
         root.attributes("-topmost", True)
         selected = filedialog.askdirectory(
             initialdir=initial_dir if os.path.isdir(initial_dir) else os.path.expanduser("~"),
-            title="dsound - elije carpeta de salida",
+            title="dsound - elige la carpeta de salida",
         )
         root.destroy()
     except tk.TclError:

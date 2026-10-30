@@ -1,9 +1,11 @@
 name: Binarios
 
 # Arma dsound listo para usar (con ffmpeg incluido) para Windows y Linux.
-# - tag v* (ej. v0.2.0): arma y publica un Release con los .zip
-# - cambios en packaging/: arma y deja los .zip como artifacts del run
-# - manual: Actions -> Binarios -> Run workflow
+# - tag v* (ej. v0.3.0): arma y publica un Release
+# - manual (Actions -> Binarios -> Run workflow) con "version": crea el tag
+#   v<version> y publica el Release; sin "version" solo arma los archivos
+# - lo llama auto-release.yml cuando sale una versión nueva de yt-dlp
+# - cambios en packaging/: arma y deja los archivos como artifacts del run
 on:
   push:
     tags: ["v*"]
@@ -12,6 +14,16 @@ on:
       - "packaging/**"
       - ".github/workflows/release.yml"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión a publicar (ej. 0.3.0). Vacío = solo armar los binarios"
+        required: false
+        default: ""
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -27,6 +39,9 @@ jobs:
           - os: ubuntu-latest
             exe: dist/dsound/dsound
     runs-on: ${{ matrix.os }}
+    outputs:
+      ytdlp: ${{ steps.versions.outputs.ytdlp }}
+      version: ${{ steps.versions.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -44,8 +59,28 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Fijar la versión
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION="${INPUT_VERSION#v}"
+          if [ -z "$VERSION" ] && [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME#v}"; fi
+          if [ -n "$VERSION" ]; then
+            echo "__version__ = \"$VERSION\"" > dsound/__init__.py
+          fi
+          cat dsound/__init__.py
+
       - name: Instalar dsound + PyInstaller
         run: pip install -e ".[build]"
+
+      - name: Versiones
+        id: versions
+        shell: bash
+        run: |
+          echo "ytdlp=$(python -c 'import yt_dlp.version as v; print(v.__version__)')" >> "$GITHUB_OUTPUT"
+          echo "version=$(python -c 'import dsound; print(dsound.__version__)')" >> "$GITHUB_OUTPUT"
 
       - name: Armar ejecutable (con ffmpeg)
         run: python packaging/build.py
@@ -53,15 +88,39 @@ jobs:
       - name: Smoke test del ejecutable
         run: python packaging/smoke_test.py ${{ matrix.exe }}
 
+      - name: Armar instalador (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          & $iscc "/DAppVersion=${{ steps.versions.outputs.version }}" packaging\dsound.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Probar el instalador (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\dsound-*-setup.exe | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP "dsound-instalado"
+          Start-Process $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CURRENTUSER","/DIR=$dir" -Wait
+          python packaging/smoke_test.py "$dir\dsound.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Start-Process "$dir\unins000.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
+
       - uses: actions/upload-artifact@v4
         with:
           name: dsound-${{ matrix.os }}
-          path: dist/dsound-*.zip
+          path: |
+            dist/dsound-*.zip
+            dist/dsound-*-setup.exe
           if-no-files-found: error
           retention-days: 30
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.version
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -69,7 +128,23 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+      - name: Notas
+        run: |
+          cat > notes.md <<NOTES
+          ## Descargas
+          - **Windows (recomendado):** \`dsound-${{ needs.build.outputs.version }}-windows-x64-setup.exe\` — instalador con acceso directo en el menú Inicio.
+          - **Windows portable:** \`dsound-${{ needs.build.outputs.version }}-windows-x64.zip\` — descomprime y abre \`dsound.exe\`.
+          - **Linux:** \`dsound-${{ needs.build.outputs.version }}-linux-x64.zip\` — descomprime y ejecuta \`./dsound\`.
+
+          Incluye ffmpeg y yt-dlp ${{ needs.build.outputs.ytdlp }}.
+          NOTES
       - uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.zip
+          tag_name: v${{ needs.build.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: dsound v${{ needs.build.outputs.version }}
+          body_path: notes.md
+          files: |
+            artifacts/*.zip
+            artifacts/*-setup.exe
           generate_release_notes: true

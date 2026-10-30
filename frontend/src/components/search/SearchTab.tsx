@@ -91,7 +91,7 @@ export function SearchTab({ hidden, bitrate, searchInputRef, ref }: SearchTabPro
 
       {search.canLoadMore && (
         <Button variant="ghost" className="mx-auto mb-8 block" disabled={search.loadingMore} onClick={search.loadMore}>
-          {search.loadingMore ? "Cargando..." : "Mas Resultados..."}
+          {search.loadingMore ? "Cargando..." : "Más resultados..."}
         </Button>
       )}
 

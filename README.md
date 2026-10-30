@@ -1,75 +1,105 @@
-# Dsound
+# dsound
 
-Baja musica de YouTube en MP3 320kbps con tags limpios (artista, titulo, album, año, nº de pista y portada), desde una interfaz web local.
+Descarga música de YouTube en MP3 (hasta 320 kbps) con los datos bien puestos: artista, título, álbum, año, número de pista y portada. Todo desde una interfaz web que se abre en tu navegador y funciona en tu PC.
 
-Uso personal. Respeta derechos de autor del contenido que descargues.
+Uso personal. Respeta los derechos de autor del contenido que descargues.
 
-## Instalacion
+## Instalación
 
-### Opcion A: ejecutable listo para usar (recomendado)
+### Opción A: instalador para Windows (recomendado)
 
-1. Bajar el `.zip` de tu sistema desde [Releases](https://github.com/pipodev06/dsound/releases) (`dsound-<version>-windows-x64.zip` o `-linux-x64.zip`).
-2. Descomprimirlo donde quieras.
-3. Abrir `dsound/dsound.exe` (Windows) o `dsound/dsound` (Linux).
+1. Descarga `dsound-<versión>-windows-x64-setup.exe` desde [Releases](https://github.com/pipodev06/dsound/releases/latest).
+2. Ábrelo y sigue los pasos. No pide permisos de administrador: se instala para tu usuario y crea un acceso directo en el menú Inicio (y, si quieres, en el escritorio y al iniciar Windows).
 
-Trae Python y ffmpeg adentro: no hace falta instalar nada. La configuracion opcional va en un `.env` al lado del ejecutable (ver `LEEME.txt` dentro del zip). Windows SmartScreen puede avisar que la app "no es reconocida" porque el ejecutable no esta firmado: "Mas informacion" → "Ejecutar de todas formas".
+Trae todo incluido (Python, ffmpeg y yt-dlp): no hace falta instalar nada más.
 
-### Opcion B: desde el codigo
+Si Windows SmartScreen muestra «Windows protegió su PC», es porque el ejecutable no está firmado digitalmente: haz clic en «Más información» → «Ejecutar de todas formas».
 
-Requisitos: Python 3.10+ y Node.js 18+ (Node solo hace falta si vas a tocar el frontend — para uso normal alcanza con el build ya compilado que trae el repo).
+### Opción B: versión portable
 
-1. Instalar ffmpeg:
-   ```
-   winget install Gyan.FFmpeg
-   ```
-   (reiniciar la terminal/sesion despues de instalarlo — Windows tarda en propagar el cambio de PATH a las terminales ya abiertas)
+Descarga el `.zip` de tu sistema desde [Releases](https://github.com/pipodev06/dsound/releases/latest) (`windows-x64.zip` o `linux-x64.zip`), descomprímelo y abre `dsound.exe` (Windows) o `./dsound` (Linux).
 
-2. Clonar el repo e instalar dsound (instala tambien el comando `dsound`):
-   ```
-   git clone https://github.com/pipodev06/dsound.git
-   cd dsound
-   pip install -e .
-   ```
+### Opción C: desde el código fuente
 
-3. (Opcional) Copiar `.env.example` a `.env` si queres cambiar la carpeta de salida, el puerto, o el acceso desde otro dispositivo de tu red — ver [Notas](#notas).
+Requisitos: Python 3.10 o superior y ffmpeg (`winget install Gyan.FFmpeg` en Windows; después de instalarlo, abre una terminal nueva para que tome el cambio).
+
+```
+git clone https://github.com/pipodev06/dsound.git
+cd dsound
+pip install -e .
+dsound
+```
 
 ## Uso
 
-```
-dsound            # o: python -m dsound
-```
+Al abrir dsound se abre el navegador en `http://127.0.0.1:5000` y aparece un ícono junto al reloj de Windows (bandeja del sistema) con las opciones «Abrir dsound», «Abrir carpeta de música» y «Salir». No queda ninguna ventana negra abierta. También puedes cerrarlo con el botón de apagado de la parte superior de la página.
 
-Si ya hay un dsound abierto, en vez de arrancar otro abre el navegador en el que ya esta corriendo.
+Si dsound ya está abierto y lo vuelves a abrir, no se inicia otra copia: solo se abre el navegador.
 
-Abre `http://127.0.0.1:5000` en el navegador (se abre solo). La interfaz tiene 4 pestañas:
+La interfaz tiene 4 pestañas:
 
 **Buscar**
-- Buscar por texto ("artista - cancion") y elegir uno o varios resultados de la grilla (paginado de a 25, "Mas Resultados..." trae mas).
-- Pegar uno o varios links de YouTube (separados por espacio o salto de linea) para bajarlos directo, sin buscar.
-- Pegar un link de playlist o canal de YouTube (`...&list=...`, `/channel/`, `/@handle`) — trae los primeros 100 videos en la misma grilla, listos para elegir y bajar.
-- Pegar un link de track de Spotify (`open.spotify.com/track/...`, incluidos los que traen prefijo de idioma como `intl-es/`) — se resuelve a "Artista Titulo" (leyendo la pagina publica, sin login) y busca eso en YouTube.
-- Pegar un link de **playlist o album de Spotify** (`open.spotify.com/playlist/...`, `/album/...`) — lee la lista de temas de la pagina publica (hasta 100), busca cada uno en YouTube (eligiendo el video con duracion parecida) y los deja todos tildados para "Descargar seleccionadas". Los mp3 quedan con el artista/titulo de Spotify, y si es un album, tambien con nombre del album, año, nº de pista y la portada del album.
-- "Escuchar" reproduce un preview del video antes de descargar. El link "↗" abre el video en YouTube.
-- El icono de lapiz deja corregir artista/titulo a mano antes de bajar. Arranca con el titulo ya limpio (sin "(Official Video)" y similares), igual a como va a quedar el archivo.
-- Al bajar un tema suelto, dsound busca su ficha en YouTube Music para usar el artista/titulo oficiales, el album, el año y la portada cuadrada. Solo la usa si coincide de verdad (mismo titulo, artista y duracion parecida); si no, se queda con el titulo del video limpio. Se puede apagar con `DSOUND_MUSIC_METADATA=0`.
-- Tildar varios resultados y usar "Descargar seleccionadas" para bajarlos todos en paralelo.
-- Si vas a bajar algo que ya tenes (titulo/artista parecido), avisa antes de descargar de nuevo.
+- Busca por texto («artista canción») y elige uno o varios resultados (se muestran de 25 en 25; «Más resultados...» trae más).
+- Pega uno o varios enlaces de YouTube (separados por espacios o saltos de línea) para descargarlos directamente.
+- Pega el enlace de una playlist o de un canal de YouTube para ver sus primeros 100 videos y elegir cuáles descargar.
+- Pega el enlace de una **canción de Spotify**: dsound lee la página pública (sin iniciar sesión) y busca esa canción en YouTube.
+- Pega el enlace de una **playlist o álbum de Spotify**: dsound lee la lista de canciones (hasta 100), busca cada una en YouTube (eligiendo el video con duración parecida) y las deja todas seleccionadas para «Descargar seleccionadas». Los MP3 quedan con el artista y el título de Spotify y, si es un álbum, también con el nombre del álbum, el año, el número de pista y la portada.
+- El botón de reproducir muestra una vista previa (solo audio, con la portada de imagen).
+- El lápiz permite corregir el artista y el título antes de descargar. Empieza con el título ya limpio (sin «(Official Video)» y similares), tal como quedará el archivo.
+- Al descargar una canción suelta, dsound busca su ficha en YouTube Music para usar el artista, el título, el álbum, el año y la portada oficiales. Solo la usa si coincide de verdad (mismo título, artista y duración parecida); si no, se queda con el título del video limpio. Se puede desactivar en Ajustes.
+- Si ya tienes algo parecido en tu biblioteca, o si ya está en la cola, avisa antes de descargarlo otra vez.
 
-**Álbumes**: busca álbumes completos (via YouTube Music) y los baja de una (con año y nº de pista en los tags), con el mismo aviso de duplicados por si ya tenes algunos tracks.
+**Álbumes**: busca álbumes completos (con YouTube Music) y los descarga de una vez, con año y número de pista en los datos del MP3.
 
-**Biblioteca**: lista lo que ya bajaste (leyendo los tags), con reproductor, filtro por artista/titulo, orden (fecha/artista/titulo/tamaño), y edicion/borrado — de a uno o en lote.
+**Biblioteca**: lista lo que ya descargaste, con reproductor, filtro, orden (fecha, artista, título, tamaño) y opciones para editar o eliminar, de una en una o varias a la vez.
 
-**Descargas**: cola de todo lo que se esta bajando o se bajo, con barra de progreso (porcentaje mientras baja, y "convirtiendo a mp3" al final), opcion de cancelar una descarga en curso o reintentar una que fallo. La cola se guarda en disco (`~/.dsound/`): si cerras dsound con descargas pendientes, se retoman solas al volver a abrirlo.
+**Descargas**: la cola con el nombre y la miniatura de cada canción, una barra de progreso (porcentaje mientras descarga y «convirtiendo a mp3» al final), y botones para cancelar, reintentar, «Limpiar terminadas» y «Abrir carpeta». La cola se guarda en disco: si cierras dsound con descargas pendientes, continúan solas la próxima vez que lo abras.
 
-Calidad de descarga (128/192/320 kbps) y carpeta de salida se configuran arriba a la derecha, en el header.
+En la parte superior de la página se eligen la calidad (128, 192 o 320 kbps) y la carpeta de salida, y están los botones de Ajustes y para cerrar dsound.
 
-Atajos: `/` enfoca el buscador, `Esc` cierra el modal/preview activo.
+**Ajustes**
+- **Usar cookies del navegador**: soluciona el error «YouTube pidió confirmar que no eres un bot» y permite descargar videos con restricción de edad. Debes haber iniciado sesión en YouTube con ese navegador. En Windows, Firefox es el que mejor funciona: Chrome y Edge cifran sus cookies y a veces hay que cerrarlos por completo.
+- **Buscar los datos oficiales en YouTube Music** (activado por defecto).
 
-## Desarrollo del frontend
+Cuando sale una versión nueva de dsound, aparece un aviso en la parte superior con el enlace para descargarla.
 
-El frontend (`frontend/`) es un proyecto Vite (React + TypeScript + Tailwind v4 + shadcn/ui) separado del paquete Python. Para uso normal de la app **no hace falta Node instalado** — el build ya compilado vive en `dsound/static/` y Flask lo sirve directo.
+Atajos: `/` va al buscador y `Esc` cierra la ventana abierta.
 
-Solo si vas a tocar la interfaz:
+## Configuración (opcional)
+
+Se hace en un archivo `.env` (copia `.env.example`). Con el instalador o la versión portable, el `.env` va en la misma carpeta que `dsound.exe`.
+
+| Variable | Para qué sirve |
+|---|---|
+| `OUTPUT_DIR` | Carpeta de salida (por defecto `~/Music/dsound`). También se cambia desde la página. |
+| `MP3_BITRATE` | Calidad por defecto (`320`). |
+| `DSOUND_PORT` | Puerto (por defecto `5000`). |
+| `DSOUND_HOST` | `0.0.0.0` para abrir dsound desde otros dispositivos de tu red (celular, etc.). |
+| `DSOUND_PASSWORD` | Contraseña para esos otros dispositivos (esta PC nunca la pide). |
+| `DSOUND_COOKIES_BROWSER` | Navegador para las cookies de YouTube (`firefox`, `chrome`, `edge`...). También desde Ajustes. |
+| `DSOUND_MUSIC_METADATA` | `0` para no buscar datos en YouTube Music. También desde Ajustes. |
+| `DSOUND_UPDATE_CHECK` | `0` para no avisar de versiones nuevas. |
+| `DSOUND_NO_BROWSER` | `1` para no abrir el navegador al iniciar. |
+| `DSOUND_NO_TRAY` | `1` para no mostrar el ícono junto al reloj. |
+| `DSOUND_DATA_DIR` | Dónde se guardan la cola, la sesión y el log (por defecto `~/.dsound`). |
+
+### Abrir dsound desde el celular
+
+Pon `DSOUND_HOST=0.0.0.0` **y** `DSOUND_PASSWORD=<una contraseña>` en el `.env`. Los otros dispositivos de tu red tendrán que iniciar sesión (la sesión dura 30 días). Sin contraseña, cualquier persona en tu red podría ver, descargar y borrar tu biblioteca. Desde otros dispositivos no se puede cambiar la carpeta de salida ni los ajustes, ni cerrar dsound. Es HTTP sin cifrar: está pensado para la red de tu casa, no para exponerlo a internet.
+
+## Si algo falla
+
+- El registro de lo que hace dsound está en `~/.dsound/dsound.log` (en Windows: `C:\Users\<tu usuario>\.dsound\dsound.log`).
+- «YouTube pidió confirmar que no eres un bot»: activa «Usar cookies del navegador» en Ajustes.
+- Si YouTube cambió algo y las descargas dejan de funcionar, normalmente se arregla con una versión nueva de yt-dlp: dsound publica una versión nueva automáticamente cada vez que sale una (revisa el aviso de la página o [Releases](https://github.com/pipodev06/dsound/releases)).
+
+## Desarrollo
+
+### Frontend
+
+El frontend (`frontend/`) es un proyecto Vite (React + TypeScript + Tailwind v4 + shadcn/ui). Para usar dsound **no hace falta Node**: el build compilado está en `dsound/static/` y lo sirve el backend.
+
+Para modificar la interfaz:
 
 ```
 cd frontend
@@ -77,18 +107,14 @@ npm install
 npm run dev
 ```
 
-Eso levanta Vite en `http://localhost:5173` con hot-reload, proxeando `/api` y `/library` al backend Flask — corre `python -m dsound` en paralelo (puerto 5000) para que el proxy tenga a donde pegarle.
-
-Para dejar los cambios listos para `python -m dsound` (sin Vite corriendo):
+Eso levanta Vite en `http://localhost:5173` con recarga automática y redirige `/api` y `/library` al backend: ejecuta `dsound` al mismo tiempo (puerto 5000). Para dejar los cambios listos en `dsound/static/`:
 
 ```
 cd frontend
 npm run build
 ```
 
-Esto compila a `dsound/static/`, pisando el build anterior.
-
-## Tests
+### Pruebas
 
 ```
 pip install -e ".[dev]"
@@ -98,28 +124,29 @@ cd frontend
 npm test                  # frontend (Vitest)
 ```
 
-Los tests no bajan nada de internet (YouTube/Spotify se simulan). GitHub Actions corre los tests, el lint y el build del frontend en cada push (`.github/workflows/ci.yml`). Dependabot propone actualizaciones de dependencias (yt-dlp semanal, porque YouTube lo rompe seguido).
+Las pruebas no descargan nada de internet (YouTube y Spotify se simulan). GitHub Actions ejecuta las pruebas, el lint y el build en cada push (`.github/workflows/ci.yml`). Dependabot propone actualizaciones de dependencias.
 
-## Armar el ejecutable
+### Armar el ejecutable
 
 ```
 pip install -e ".[build]"
 python packaging/build.py
 ```
 
-Deja `dist/dsound-<version>-<plataforma>.zip` (baja ffmpeg solo; `--no-ffmpeg` para no incluirlo). PyInstaller no cruza plataformas: el `.exe` de Windows se arma en Windows. Para eso esta el workflow `.github/workflows/release.yml`, que arma Windows y Linux, prueba que cada ejecutable arranque y encuentre ffmpeg, y:
+Deja `dist/dsound-<versión>-<plataforma>.zip` (descarga ffmpeg solo; con `--no-ffmpeg` no lo incluye). PyInstaller no genera ejecutables para otros sistemas: el `.exe` de Windows se arma en Windows. Para eso está el workflow `.github/workflows/release.yml`, que arma Windows (zip + instalador con Inno Setup) y Linux, prueba que cada ejecutable inicie, encuentre ffmpeg y se cierre bien, y:
 
-- con un tag `v*` (ej. `git tag v0.2.0 && git push origin v0.2.0`) publica un Release con los dos `.zip`;
-- si no, los deja como artifacts del run en la pestaña Actions.
+- con un tag `v*` (por ejemplo `git tag v0.3.0 && git push origin v0.3.0`), o ejecutándolo a mano con una versión, publica un Release;
+- si no, deja los archivos como artifacts en la pestaña Actions.
+
+El workflow `.github/workflows/auto-release.yml` revisa cada lunes si salió una versión nueva de yt-dlp y, si el último Release no la incluye, publica uno nuevo automáticamente.
+
+El ícono se genera con `python packaging/make_icon.py`.
 
 ## Notas
 
-- No usa la API de Spotify para busqueda/matching: la API para desarrolladores ahora exige que la cuenta dueña de la app tenga Premium para casi cualquier llamada. El titulo/artista de cada descarga sale del propio titulo del video de YouTube (separando por " - " cuando el video lo trae asi, editable a mano si hace falta) y la portada es el thumbnail del video. Pegar un link de Spotify si funciona (ver arriba), porque solo lee la pagina publica, no pasa por el Web API.
-- Default de salida: `~/Music/dsound` (Windows lo muestra como "Musica/dsound", el nombre real de la carpeta es "Music"). Se puede cambiar desde la interfaz o en `.env`.
-- El puerto por default es `5000`, configurable con `DSOUND_PORT` en `.env`.
-- Por default solo escucha en `127.0.0.1` (esta maquina). Para abrirlo desde otro dispositivo de tu red (celular, etc.), poner `DSOUND_HOST=0.0.0.0` en `.env`, **junto con `DSOUND_PASSWORD=<una contraseña>`**: los otros dispositivos van a tener que loguearse (la sesion dura 30 dias; esta PC nunca pide contraseña). Sin `DSOUND_PASSWORD`, cualquiera en tu misma red puede ver/bajar/borrar tu biblioteca, y la consola lo avisa al arrancar. Al arrancar con esto activado, la consola muestra la URL de red para abrir desde el otro dispositivo. La carpeta de salida solo se puede cambiar desde la PC donde corre dsound, y la API de biblioteca solo da acceso a los `.mp3` de esa carpeta. Es HTTP sin cifrar: pensado para tu red de casa, no para exponerlo a internet.
-- **dsound es una herramienta personal para uso local/propio**, pensada para correr en tu maquina (no un servicio publico): usa yt-dlp para bajar de YouTube, lo cual esta en tension con los Terminos de Servicio de YouTube. Sos responsable de como la usas y del contenido que descargues.
+- No usa la API de Spotify (exige que la cuenta dueña de la app tenga Premium): solo lee las páginas públicas.
+- dsound es una herramienta personal para usar en tu propia PC, no un servicio público. Usa yt-dlp para descargar de YouTube, lo que puede ir en contra de los Términos de Servicio de YouTube. Eres responsable de cómo lo usas y del contenido que descargas.
 
 ## Licencia
 
-MIT — ver [LICENSE](LICENSE). El ejecutable incluye ffmpeg (build LGPL de [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds)), con su licencia en `_internal/ffmpeg/LICENSE.txt`.
+MIT; consulta [LICENSE](LICENSE). El ejecutable incluye ffmpeg (build LGPL de [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds)), con su licencia en `_internal/ffmpeg/LICENSE.txt`.

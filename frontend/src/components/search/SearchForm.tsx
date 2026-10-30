@@ -25,7 +25,7 @@ export function SearchForm({ query, onQueryChange, onSubmit, inputRef }: SearchF
         ref={inputRef}
         className="min-w-0 flex-1 border-0 border-b border-transparent bg-transparent pb-0.5 font-mono text-[0.95rem] text-text outline-none placeholder:text-text-muted focus:border-accent focus-visible:outline-none"
         type="text"
-        placeholder="buscar cancion, pegar link(s) de YouTube, playlist/canal, o de Spotify (tema, playlist o album)"
+        placeholder="busca una canción o pega enlaces de YouTube (video, playlist o canal) o de Spotify (canción, playlist o álbum)"
         autoComplete="off"
         autoFocus
         value={query}

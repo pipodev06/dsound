@@ -1,35 +1,37 @@
-dsound - musica de YouTube en MP3 con tags limpios
-==================================================
+dsound - música de YouTube en MP3 con los datos bien puestos
+=============================================================
 
-Como usarlo
+Cómo usarlo
 -----------
-Windows: doble click en dsound.exe
+Windows: doble clic en dsound.exe
 Linux:   ./dsound
 
-Se abre una consola y el navegador en http://127.0.0.1:5000.
-Para cerrar dsound, cerra esa consola (o Ctrl+C).
+Se abre el navegador en http://127.0.0.1:5000. En Windows aparece un ícono
+junto al reloj con las opciones "Abrir dsound", "Abrir carpeta de música" y
+"Salir". También puedes cerrarlo con el botón de apagado de la página.
 
 ffmpeg ya viene incluido: no hace falta instalar nada.
 
-Configuracion (opcional)
+Configuración (opcional)
 ------------------------
-Crear un archivo .env al lado de dsound.exe con, por ejemplo:
+Crea un archivo .env en esta misma carpeta, por ejemplo:
 
     OUTPUT_DIR=D:\Musica
     MP3_BITRATE=320
     DSOUND_PORT=5000
 
-    # abrir dsound desde el celular (misma red WiFi):
+    # para abrir dsound desde el celular (misma red wifi):
     DSOUND_HOST=0.0.0.0
     DSOUND_PASSWORD=una-contraseña-larga
 
-La cola de descargas se guarda en la carpeta .dsound de tu usuario:
-si cerras dsound con descargas pendientes, se retoman al volver a abrirlo.
+La cola de descargas y el registro (dsound.log) se guardan en la carpeta
+.dsound de tu usuario: si cierras dsound con descargas pendientes, continúan
+la próxima vez que lo abras.
 
-Windows SmartScreen puede avisar que la app "no es reconocida" porque el
-ejecutable no esta firmado: "Mas informacion" -> "Ejecutar de todas formas".
+Si Windows SmartScreen muestra "Windows protegió su PC", es porque el
+ejecutable no está firmado: "Más información" -> "Ejecutar de todas formas".
 
 Licencias
 ---------
-dsound: MIT. ffmpeg (carpeta _internal/ffmpeg): LGPL, ver su LICENSE.txt.
-Codigo fuente de ffmpeg: https://github.com/BtbN/FFmpeg-Builds
+dsound: MIT. ffmpeg (carpeta _internal/ffmpeg): LGPL, consulta su LICENSE.txt.
+Código fuente de ffmpeg: https://github.com/BtbN/FFmpeg-Builds

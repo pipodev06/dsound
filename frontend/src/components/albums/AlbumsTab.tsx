@@ -18,7 +18,7 @@ interface AlbumDownloadState {
   label: string;
 }
 
-const DEFAULT_STATE: AlbumDownloadState = { downloading: false, label: "Descargar album completo" };
+const DEFAULT_STATE: AlbumDownloadState = { downloading: false, label: "Descargar álbum completo" };
 
 interface AlbumsTabProps {
   hidden: boolean;
@@ -45,26 +45,26 @@ export function AlbumsTab({ hidden, bitrate, ref }: AlbumsTabProps) {
 
   async function runSearch(q: string) {
     clearLogs();
-    log("info", `buscando albumes de "${q}"...`);
+    log("info", `buscando álbumes de "${q}"...`);
     setResults([]);
     setHasMore(false);
     searchQueryRef.current = q;
     try {
       const res = await searchAlbums(q, ALBUM_PAGE_STEP);
       if (!res.ok) {
-        log("err", res.error || "busqueda de albumes fallida.");
+        log("err", res.error || "falló la búsqueda de álbumes.");
         return;
       }
       const items = res.results || [];
       if (items.length === 0) {
-        log("warn", "sin albumes encontrados.");
+        log("warn", "no se encontraron álbumes.");
         return;
       }
       setResults(items);
       setHasMore(items.length >= ALBUM_PAGE_STEP && items.length < ALBUM_LIMIT_CAP);
-      log("ok", `${items.length} album(es) para "${q}"`);
+      log("ok", `${items.length} álbum(es) para "${q}"`);
     } catch {
-      log("err", "fallo de red al buscar albumes.");
+      log("err", "error de red al buscar álbumes.");
     }
   }
 
@@ -82,26 +82,26 @@ export function AlbumsTab({ hidden, bitrate, ref }: AlbumsTabProps) {
       const nextLimit = Math.min(results.length + ALBUM_PAGE_STEP, ALBUM_LIMIT_CAP);
       const res = await searchAlbums(searchQueryRef.current, nextLimit);
       if (!res.ok) {
-        log("err", res.error || "no se pudieron cargar mas albumes.");
+        log("err", res.error || "no se pudieron cargar más álbumes.");
         return;
       }
       const newResults = res.results || [];
       if (newResults.length <= results.length) {
-        log("info", "no hay mas albumes.");
+        log("info", "no hay más álbumes.");
         setHasMore(false);
         return;
       }
       setResults(newResults);
       setHasMore(newResults.length < ALBUM_LIMIT_CAP);
     } catch {
-      log("err", "fallo de red al cargar mas albumes.");
+      log("err", "error de red al cargar más álbumes.");
     } finally {
       setLoadingMore(false);
     }
   }
 
   async function downloadAlbum(album: AlbumSummary) {
-    setState(album.browse_id, { downloading: true, label: "Consultando tracks..." });
+    setState(album.browse_id, { downloading: true, label: "Consultando canciones..." });
     try {
       let duplicateMode: DuplicateMode = null;
       let data;
@@ -111,9 +111,9 @@ export function AlbumsTab({ hidden, bitrate, ref }: AlbumsTabProps) {
           const items = result.data.duplicates.map(
             (d) => `${d.title}${d.artist ? " - " + d.artist : ""} (ya existe "${d.existing}")`
           );
-          const choice = await openDuplicateModal(`${result.data.duplicates.length} cancion(es) de este album ya las tienes:`, items);
+          const choice = await openDuplicateModal(`${result.data.duplicates.length} canción(es) de este álbum ya están en tu biblioteca:`, items);
           if (choice === "cancel") {
-            log("warn", "descarga de album cancelada.");
+            log("warn", "descarga del álbum cancelada.");
             setState(album.browse_id, DEFAULT_STATE);
             return;
           }
@@ -133,7 +133,7 @@ export function AlbumsTab({ hidden, bitrate, ref }: AlbumsTabProps) {
         if (t.skipped) log("warn", `omitido "${t.title}" (ya existe "${t.existing}")`);
       }
       let done = 0;
-      log("info", `descargando album "${data.album}": ${jobs.length} track(s)...`);
+      log("info", `descargando el álbum "${data.album}": ${jobs.length} canción(es)...`);
       setState(album.browse_id, { downloading: true, label: `Descargando 0/${jobs.length}` });
       await Promise.all(
         jobs.map(async (t) => {
@@ -149,9 +149,9 @@ export function AlbumsTab({ hidden, bitrate, ref }: AlbumsTabProps) {
           }
         })
       );
-      setState(album.browse_id, { downloading: true, label: "Album descargado" });
+      setState(album.browse_id, { downloading: true, label: "Álbum descargado" });
     } catch {
-      log("err", "fallo de red al descargar el album.");
+      log("err", "error de red al descargar el álbum.");
       setState(album.browse_id, DEFAULT_STATE);
     }
   }
@@ -160,13 +160,13 @@ export function AlbumsTab({ hidden, bitrate, ref }: AlbumsTabProps) {
     <div className={hidden ? "hidden" : undefined}>
       <form className="mx-auto mb-6 flex max-w-[960px] items-center gap-3 rounded-md border border-border bg-surface px-4 py-3" onSubmit={handleSubmit}>
         <Label htmlFor="album-query" className="font-mono font-semibold text-accent">
-          album &gt;
+          álbum &gt;
         </Label>
         <input
           id="album-query"
           className="min-w-0 flex-1 border-0 border-b border-transparent bg-transparent pb-0.5 font-mono text-[0.95rem] text-text outline-none placeholder:text-text-muted focus:border-accent focus-visible:outline-none"
           type="text"
-          placeholder="buscar album o artista"
+          placeholder="buscar álbum o artista"
           autoComplete="off"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -188,7 +188,7 @@ export function AlbumsTab({ hidden, bitrate, ref }: AlbumsTabProps) {
 
       {hasMore && (
         <Button variant="ghost" className="mx-auto mb-8 block" disabled={loadingMore} onClick={loadMore}>
-          {loadingMore ? "Cargando..." : "Mas Resultados..."}
+          {loadingMore ? "Cargando..." : "Más resultados..."}
         </Button>
       )}
 
